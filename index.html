@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>VPLY CENTRE</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<h1>VPLY CENTRE - Stock Management</h1>
+
+<!-- MAIN ENTRY DASHBOARD -->
+<div class="container" id="mainDashboard">
+
+<h2>Add Stock</h2>
+
+<label>Category</label>
+<select id="category" onchange="updateFields()">
+<option>Plywood</option>
+<option>Door</option>
+<option>HDMR</option>
+<option>Bison Board</option>
+</select>
+
+<label>Brand</label>
+<select id="brand">
+<option>Century Club Prime</option>
+<option>VPlatinum</option>
+<option>Green Ply</option>
+<option>Mikasa Ply</option>
+<option>Sainik</option>
+<option>Pine Door</option>
+<option>Marine Door</option>
+<option>Green Door</option>
+<option>HDMR Board</option>
+<option>Bison Panel</option>
+</select>
+
+<label>Thickness</label>
+<select id="thickness"></select>
+
+<label>Size</label>
+<select id="size"></select>
+
+<label>Quantity</label>
+<input type="number" id="qty">
+
+<button onclick="saveStock()">Add Stock</button>
+
+<hr>
+
+<h2>Upload Excel Stock</h2>
+<input type="file" id="excelUpload" onchange="handleExcelUpload(event)">
+
+<br><br>
+<button onclick="showStock()">View Current Stock</button>
+
+</div>
+
+
+<!-- STOCK VIEW DASHBOARD -->
+<div class="container" id="stockDashboard" style="display:none">
+
+<h2>Current Stock</h2>
+
+<input type="text" id="searchBrand"
+placeholder="Search by Brand..."
+onkeyup="searchStock()"
+style="padding:8px;width:60%;">
+
+<br><br>
+
+<button onclick="renderStock()">Refresh Stock</button>
+
+<div id="alertBox"></div>
+
+<table id="stockTable">
+<tr>
+<th>Category</th>
+<th>Brand</th>
+<th>Thickness</th>
+<th>Size</th>
+<th>Qty</th>
+<th>Action</th>
+</tr>
+</table>
+
+<br>
+<button onclick="goBack()">Back</button>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
