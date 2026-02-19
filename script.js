@@ -106,26 +106,28 @@ msg+=`${s.brand} ${s.thickness} ${s.size} LOW STOCK<br>`;
 document.getElementById("alertBox").innerHTML=msg;
 }
 
-// DASHBOARD SWITCH
+// DASHBOARD SWITCH (FIXED)
 function showStock(){
-mainDashboard.style.display="none";
-stockDashboard.style.display="block";
+document.getElementById("mainDashboard").style.display="none";
+document.getElementById("stockDashboard").style.display="block";
 renderStock();
 }
+
 function goBack(){
-stockDashboard.style.display="none";
-mainDashboard.style.display="block";
+document.getElementById("stockDashboard").style.display="none";
+document.getElementById("mainDashboard").style.display="block";
 }
 
 // BILL DASHBOARD
 function showBilling(){
-mainDashboard.style.display="none";
-billingDashboard.style.display="block";
+document.getElementById("mainDashboard").style.display="none";
+document.getElementById("billingDashboard").style.display="block";
 loadBillStock();
 }
+
 function goBackFromBill(){
-billingDashboard.style.display="none";
-mainDashboard.style.display="block";
+document.getElementById("billingDashboard").style.display="none";
+document.getElementById("mainDashboard").style.display="block";
 }
 
 // LOAD BILL STOCK
@@ -152,7 +154,7 @@ bills.push(data);
 localStorage.setItem("bills",JSON.stringify(bills));
 }
 
-// GENERATE BILL
+// GENERATE BILL (WORKING)
 function generateBill(){
 
 let party=document.getElementById("partyName").value;
@@ -172,35 +174,27 @@ alert("Not enough stock");
 return;
 }
 
-// SIZE CONVERSION
 let dims=item.size.split("x");
 let length=sizeToMeter(dims[0]);
 let width=sizeToMeter(dims[1]);
 
-// CORE BILL CALCULATION
 let materialAmount;
 
 if(rateType==="sqft"){
-materialAmount = rate * 10.764 * length * width * qty;
+materialAmount=rate*10.764*length*width*qty;
 }else{
-materialAmount = rate * length * width * qty;
+materialAmount=rate*length*width*qty;
 }
 
-// DISCOUNT BEFORE GST
-let discountAmt = materialAmount*(discount/100);
-let afterDiscount = materialAmount-discountAmt;
+let discountAmt=materialAmount*(discount/100);
+let afterDiscount=materialAmount-discountAmt;
+let gstAmt=gst?afterDiscount*0.18:0;
+let finalTotal=afterDiscount+gstAmt+carriage+unloading;
 
-// GST AFTER DISCOUNT
-let gstAmt = gst ? afterDiscount*0.18 : 0;
-
-let finalTotal = afterDiscount + gstAmt + carriage + unloading;
-
-// REDUCE STOCK
-stocks[index].qty -= qty;
-localStorage.setItem("stocks", JSON.stringify(stocks));
+stocks[index].qty-=qty;
+localStorage.setItem("stocks",JSON.stringify(stocks));
 renderStock();
 
-// SAVE BILL HISTORY (unchanged)
 saveBillHistory({
 party,
 material:item.brand+" "+item.thickness+" "+item.size,
@@ -209,59 +203,60 @@ total:finalTotal,
 date:new Date().toLocaleString()
 });
 
-// BILL OUTPUT
-document.getElementById("billOutput").innerHTML = `
+document.getElementById("billOutput").innerHTML=`
 <div style="background:#fff;padding:20px;font-family:Arial">
 
 <h2 style="text-align:center">VPLY CENTRE</h2>
-<p style="text-align:center">Plywood & Doors Supplier</p>
 <hr>
 
 <p><b>Party:</b> ${party}</p>
-<p><b>Material:</b> ${item.brand} ${item.thickness} ${item.size}</p>
-<p><b>Quantity:</b> ${qty}</p>
-<p><b>Rate:</b> Rs. ${rate} (${rateType})</p>
+<p>${item.brand} ${item.thickness} ${item.size}</p>
+<p>Qty: ${qty}</p>
+<p>Rate: Rs. ${rate} (${rateType})</p>
 
-<table border="1" width="100%" cellpadding="8">
-<tr>
-<th>Description</th>
-<th>Amount</th>
-</tr>
+<p>Material Amount: Rs. ${materialAmount.toFixed(2)}</p>
+<p>Discount: Rs. ${discountAmt.toFixed(2)}</p>
+<p>GST: Rs. ${gstAmt.toFixed(2)}</p>
+<p>Carriage: Rs. ${carriage}</p>
+<p>Unloading: Rs. ${unloading}</p>
 
-<tr>
-<td>Material Amount</td>
-<td>Rs. ${materialAmount.toFixed(2)}</td>
-</tr>
+<h3>Total: Rs. ${finalTotal.toFixed(2)}</h3>
 
-<tr>
-<td>Discount (${discount}%)</td>
-<td>- Rs. ${discountAmt.toFixed(2)}</td>
-</tr>
-
-<tr>
-<td>GST 18%</td>
-<td>Rs. ${gstAmt.toFixed(2)}</td>
-</tr>
-
-<tr>
-<td>Carriage</td>
-<td>Rs. ${carriage}</td>
-</tr>
-
-<tr>
-<td>Unloading</td>
-<td>Rs. ${unloading}</td>
-</tr>
-
-<tr>
-<td><b>Total</b></td>
-<td><b>Rs. ${finalTotal.toFixed(2)}</b></td>
-</tr>
-</table>
-
-<br>
 <button onclick="window.print()">Print Bill</button>
 <button onclick="sendWhatsAppBill()">Send WhatsApp</button>
 
 </div>`;
+}
+
+// WHATSAPP SEND
+function sendWhatsAppBill(){
+let number=document.getElementById("whatsappNumber").value;
+let text=document.getElementById("billOutput").innerText;
+window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`);
+}
+
+// PREVIOUS BILLS
+function showBills(){
+document.getElementById("mainDashboard").style.display="none";
+document.getElementById("billsDashboard").style.display="block";
+
+let bills=JSON.parse(localStorage.getItem("bills"))||[];
+let table=document.getElementById("billsTable");
+
+table.innerHTML="<tr><th>Date</th><th>Party</th><th>Material</th><th>Qty</th><th>Total</th></tr>";
+
+bills.forEach(b=>{
+table.innerHTML+=`<tr>
+<td>${b.date}</td>
+<td>${b.party}</td>
+<td>${b.material}</td>
+<td>${b.qty}</td>
+<td>Rs. ${b.total.toFixed(2)}</td>
+</tr>`;
+});
+}
+
+function backFromBills(){
+document.getElementById("billsDashboard").style.display="none";
+document.getElementById("mainDashboard").style.display="block";
 }
