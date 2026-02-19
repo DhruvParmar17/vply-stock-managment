@@ -1,147 +1,199 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>VPLY CENTRE</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPLY CENTRE - Stock & Billing</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<h1>VPLY CENTRE - Stock Management</h1>
+    <h1>VPLY CENTRE</h1>
 
-<!-- MAIN DASHBOARD -->
-<div class="container" id="mainDashboard">
+    <!-- MAIN DASHBOARD -->
+    <div class="container" id="mainDashboard">
+        
+        <h2>Dashboard</h2>
+        
+        <div class="dashboard-card">
+            <h3>Add New Stock</h3>
+            <label>Category</label>
+            <select id="category" onchange="updateFields()">
+                <option>Plywood</option>
+                <option>Door</option>
+                <option>HDMR</option>
+                <option>Bison Board</option>
+            </select>
 
-<h2>Add Stock</h2>
+            <label>Brand</label>
+            <select id="brand">
+                <option>Century Club Prime</option>
+                <option>VPlatinum</option>
+                <option>Green Ply</option>
+                <option>Mikasa Ply</option>
+                <option>Sainik</option>
+                <option>Pine Door</option>
+                <option>Marine Door</option>
+                <option>Green Door</option>
+                <option>HDMR Board</option>
+                <option>Bison Panel</option>
+            </select>
 
-<label>Category</label>
-<select id="category" onchange="updateFields()">
-<option>Plywood</option>
-<option>Door</option>
-<option>HDMR</option>
-<option>Bison Board</option>
-</select>
+            <div class="row-flex">
+                <div class="full-width">
+                    <label>Thickness</label>
+                    <select id="thickness"></select>
+                </div>
+                <div class="full-width">
+                    <label>Size</label>
+                    <select id="size"></select>
+                </div>
+            </div>
 
-<label>Brand</label>
-<select id="brand">
-<option>Century Club Prime</option>
-<option>VPlatinum</option>
-<option>Green Ply</option>
-<option>Mikasa Ply</option>
-<option>Sainik</option>
-<option>Pine Door</option>
-<option>Marine Door</option>
-<option>Green Door</option>
-<option>HDMR Board</option>
-<option>Bison Panel</option>
-</select>
+            <label>Quantity</label>
+            <input type="number" id="qty" placeholder="Enter Qty">
 
-<label>Thickness</label>
-<select id="thickness"></select>
+            <button onclick="saveStock()">Add to Stock</button>
+        </div>
 
-<label>Size</label>
-<select id="size"></select>
+        <div class="dashboard-card">
+            <h3>Quick Actions</h3>
+            <button class="secondary" onclick="showStock()">View Current Stock</button>
+            <button onclick="showBilling()">Make New Bill</button>
+            <button class="secondary" onclick="showBills()">Previous Bills</button>
+        </div>
 
-<label>Quantity</label>
-<input type="number" id="qty">
+        <div class="dashboard-card">
+            <h3>Data Management</h3>
+            <label>Upload Excel Stock</label>
+            <input type="file" onchange="handleExcelUpload(event)">
+        </div>
 
-<button onclick="saveStock()">Add Stock</button>
+    </div>
 
-<hr>
+    <!-- STOCK DASHBOARD -->
+    <div class="container" id="stockDashboard" style="display:none">
+        
+        <h2>Current Stock</h2>
+        
+        <input type="text" id="searchBrand" placeholder="Search by Brand..." onkeyup="searchStock()">
+        
+        <div id="alertBox"></div>
 
-<h2>Upload Excel Stock</h2>
-<input type="file" onchange="handleExcelUpload(event)">
+        <div class="table-wrapper">
+            <table id="stockTable"></table>
+        </div>
 
-<br><br>
-<button onclick="showStock()">View Current Stock</button>
-<br><br>
-<button onclick="showBilling()">Make Bill</button>
-<br><br>
-<button onclick="showBills()">Previous Bills</button>
+        <div class="row-flex mt-10">
+            <button class="secondary" onclick="renderStock()">Refresh</button>
+            <button onclick="goBack()">Back to Dashboard</button>
+        </div>
 
-</div>
+    </div>
 
-<!-- STOCK DASHBOARD -->
-<div class="container" id="stockDashboard" style="display:none">
+    <!-- BILLING DASHBOARD -->
+    <div class="container" id="billingDashboard" style="display:none">
+        
+        <h2>Create Bill</h2>
 
-<h2>Current Stock</h2>
+        <div class="dashboard-card">
+            <label>Party Name</label>
+            <input type="text" id="partyName" placeholder="Enter Customer Name">
 
-<input type="text" id="searchBrand"
-placeholder="Search by Brand..."
-onkeyup="searchStock()">
+            <label>WhatsApp Number</label>
+            <input type="text" id="whatsappNumber" placeholder="91XXXXXXXXXX (No spaces)">
+        </div>
 
-<br><br>
-<button onclick="renderStock()">Refresh</button>
+        <div class="dashboard-card">
+            <h3>Add Items to Bill</h3>
+            
+            <label>Select Item From Stock</label>
+            <select id="billStock"></select>
 
-<div id="alertBox"></div>
+            <div class="row-flex">
+                <div class="full-width">
+                    <label>Quantity</label>
+                    <input type="number" id="billQty" placeholder="Qty">
+                </div>
+                <div class="full-width">
+                    <label>Rate Type</label>
+                    <select id="rateType">
+                        <option value="sqft">Per Sq. Ft</option>
+                        <option value="sqm">Per Sq. Meter</option>
+                        <option value="pcs">Per Piece</option> 
+                    </select>
+                </div>
+            </div>
 
-<table id="stockTable"></table>
+            <label>Rate (Price)</label>
+            <input type="number" id="rate" placeholder="Enter Rate">
+            
+            <button class="secondary" onclick="addToCart()">+ Add Item</button>
+        </div>
 
-<br>
-<button onclick="goBack()">Back</button>
+        <!-- Cart Section -->
+        <div class="dashboard-card">
+            <h3>Bill Items</h3>
+            <div class="table-wrapper">
+                <table id="cartTable">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Amount</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cartBody"></tbody>
+                </table>
+            </div>
+            <div style="text-align: right; margin-top: 10px; font-weight: bold;">
+                 Subtotal: Rs. <span id="cartSubtotal">0</span>
+            </div>
+        </div>
 
-</div>
+        <div class="dashboard-card">
+            <h3>Final Adjustments</h3>
+            <label>
+                <input type="checkbox" id="gstCheck" style="width:auto; margin-right:10px;"> Add GST 18%
+            </label>
 
-<!-- BILLING DASHBOARD -->
-<div class="container" id="billingDashboard" style="display:none">
+            <div class="row-flex">
+                <div class="full-width">
+                    <label>Carriage</label>
+                    <input type="number" id="carriage" value="0">
+                </div>
+                <div class="full-width">
+                    <label>Unloading</label>
+                    <input type="number" id="unloading" value="0">
+                </div>
+            </div>
 
-<h2>Plywood Billing</h2>
+            <label>Discount (%)</label>
+            <input type="number" id="discount" value="0">
 
-<label>Party Name</label>
-<input type="text" id="partyName">
+            <button onclick="generateBill()">Generate Final Bill</button>
+            <button class="secondary" onclick="goBackFromBill()">Cancel / Back</button>
+        </div>
 
-<label>WhatsApp Number</label>
-<input type="text" id="whatsappNumber" placeholder="91XXXXXXXXXX">
+        <div id="billOutput"></div>
 
-<label>Select Stock</label>
-<select id="billStock"></select>
+    </div>
 
-<label>Quantity</label>
-<input type="number" id="billQty">
+    <!-- PREVIOUS BILLS DASHBOARD -->
+    <div class="container" id="billsDashboard" style="display:none">
+        
+        <h2>Bill History</h2>
 
-<label>Rate Type</label>
-<select id="rateType">
-<option value="sqm">Per Sq Meter</option>
-<option value="sqft">Per Sq Feet</option>
-</select>
+        <div class="table-wrapper">
+            <table id="billsTable"></table>
+        </div>
 
-<label>Rate</label>
-<input type="number" id="rate">
+        <button onclick="backFromBills()">Back to Dashboard</button>
 
-<label>
-<input type="checkbox" id="gstCheck"> Add GST 18%
-</label>
+    </div>
 
-<label>Carriage</label>
-<input type="number" id="carriage" value="0">
-
-<label>Unloading</label>
-<input type="number" id="unloading" value="0">
-
-<label>Discount (%)</label>
-<input type="number" id="discount" value="0">
-
-<br><br>
-<button onclick="generateBill()">Generate Bill</button>
-<button onclick="goBackFromBill()">Back</button>
-
-<hr>
-<div id="billOutput"></div>
-
-</div>
-
-<!-- PREVIOUS BILLS DASHBOARD -->
-<div class="container" id="billsDashboard" style="display:none">
-
-<h2>Previous Bills</h2>
-
-<table id="billsTable" border="1" width="100%"></table>
-
-<br>
-<button onclick="backFromBills()">Back</button>
-
-</div>
-
-<script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
