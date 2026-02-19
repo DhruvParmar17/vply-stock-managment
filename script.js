@@ -1,262 +1,516 @@
 // STOCK STORAGE
 let stocks = JSON.parse(localStorage.getItem("stocks")) || [];
 
+// BILL CART
+let billCart = [];
+
 // INITIAL LOAD
 window.onload = function(){
-updateFields();
-renderStock();
-checkShortage();
+    updateFields();
+    renderStock();
+    checkShortage();
+    // Setup date in print view if needed
+    const dateEl = document.getElementById("billDate");
+    if(dateEl) dateEl.innerText = new Date().toLocaleDateString();
 };
+
+// MARK: - STOCK MANAGEMENT
 
 // THICKNESS & SIZE
 function updateFields(){
-let category=document.getElementById("category").value;
-let thickness=document.getElementById("thickness");
-let size=document.getElementById("size");
+    let category=document.getElementById("category").value;
+    let thickness=document.getElementById("thickness");
+    let size=document.getElementById("size");
 
-thickness.innerHTML="";
-size.innerHTML="";
+    thickness.innerHTML="";
+    size.innerHTML="";
 
-if(category==="Door"){
-["19BB","25BB","25mm","30mm","35mm","40mm","45mm","50mm"]
-.forEach(t=>thickness.add(new Option(t)));
-}else if(category==="Bison Board"){
-["6mm","8mm","12mm","16mm","18mm"]
-.forEach(t=>thickness.add(new Option(t)));
-}else{
-["4mm","6mm","8mm","12mm","16mm","18mm"]
-.forEach(t=>thickness.add(new Option(t)));
-}
+    // Expanded logic for better user experience
+    if(category==="Door"){
+        ["19BB","25BB","25mm","30mm","32mm","35mm","40mm","45mm","50mm"]
+        .forEach(t=>thickness.add(new Option(t)));
+    } else if(category==="Bison Board"){
+        ["6mm","8mm","10mm","12mm","16mm","18mm","20mm"]
+        .forEach(t=>thickness.add(new Option(t)));
+    } else {
+        ["3mm","4mm","6mm","8mm","12mm","15mm","16mm","18mm","19mm","25mm"]
+        .forEach(t=>thickness.add(new Option(t)));
+    }
 
-if(category==="HDMR"){
-size.add(new Option("8x4"));
-}else{
-["8x4","7x4","6x4","8x3","7x3","6x3","8x2.5","7x2.5","6x2.5"]
-.forEach(s=>size.add(new Option(s)));
-}
+    if(category==="HDMR"){
+        size.add(new Option("8x4"));
+    } else {
+        ["8x4","7x4","6x4","8x3","7x3","6x3","8x2.5","7x2.5","6x2.5"]
+        .forEach(s=>size.add(new Option(s)));
+    }
 }
 
 // SAVE STOCK
 function saveStock(){
-let category=document.getElementById("category").value;
-let brand=document.getElementById("brand").value;
-let thickness=document.getElementById("thickness").value;
-let size=document.getElementById("size").value;
-let qty=parseInt(document.getElementById("qty").value);
+    let category=document.getElementById("category").value;
+    let brand=document.getElementById("brand").value;
+    let thickness=document.getElementById("thickness").value;
+    let size=document.getElementById("size").value;
+    let qty=parseInt(document.getElementById("qty").value);
 
-if(!qty || qty<=0){
-alert("Enter valid quantity");
-return;
-}
+    if(!qty || qty<=0){
+        alert("Please enter a valid quantity.");
+        return;
+    }
 
-stocks.push({category,brand,thickness,size,qty});
-localStorage.setItem("stocks", JSON.stringify(stocks));
-renderStock();
-checkShortage();
-document.getElementById("qty").value="";
+    stocks.push({category,brand,thickness,size,qty});
+    localStorage.setItem("stocks", JSON.stringify(stocks));
+    
+    renderStock();
+    checkShortage();
+    
+    // Reset inputs
+    document.getElementById("qty").value="";
+    alert("Stock Added Successfully!");
 }
 
 // STOCK TABLE
 function renderStock(){
-let table=document.getElementById("stockTable");
+    let table=document.getElementById("stockTable");
 
-if(!stocks.length){
-table.innerHTML="<tr><td colspan='6'>No stock</td></tr>";
-return;
-}
+    if(!stocks.length){
+        table.innerHTML="<tr><td colspan='6' class='text-center'>No stock available. Add some items!</td></tr>";
+        return;
+    }
 
-table.innerHTML=`
-<tr>
-<th>Category</th>
-<th>Brand</th>
-<th>Thickness</th>
-<th>Size</th>
-<th>Qty</th>
-<th>Action</th>
-</tr>`;
+    let html = `
+    <thead>
+    <tr>
+        <th>Category</th>
+        <th>Brand</th>
+        <th>Thickness</th>
+        <th>Size</th>
+        <th>Qty</th>
+        <th>Action</th>
+    </tr>
+    </thead>
+    <tbody>`;
 
-stocks.forEach((s,i)=>{
-table.innerHTML+=`
-<tr>
-<td>${s.category}</td>
-<td>${s.brand}</td>
-<td>${s.thickness}</td>
-<td>${s.size}</td>
-<td>${s.qty}</td>
-<td><button onclick="deleteStock(${i})">Delete</button></td>
-</tr>`;
-});
+    stocks.forEach((s,i)=>{
+        html+=`
+        <tr>
+            <td>${s.category}</td>
+            <td>${s.brand}</td>
+            <td>${s.thickness}</td>
+            <td>${s.size}</td>
+            <td style="font-weight:bold; color:${s.qty<=5?'red':'inherit'}">${s.qty}</td>
+            <td><button class="danger" style="margin-top:0; padding:5px 10px; width:auto;" onclick="deleteStock(${i})">Delete</button></td>
+        </tr>`;
+    });
+    
+    html += "</tbody>";
+    table.innerHTML = html;
 }
 
 // DELETE STOCK
 function deleteStock(i){
-stocks.splice(i,1);
-localStorage.setItem("stocks", JSON.stringify(stocks));
-renderStock();
+    if(confirm("Are you sure you want to delete this stock item?")){
+        stocks.splice(i,1);
+        localStorage.setItem("stocks", JSON.stringify(stocks));
+        renderStock();
+    }
 }
 
 // LOW STOCK ALERT
 function checkShortage(){
-let msg="";
-stocks.forEach(s=>{
-if(s.qty<=5){
-msg+=`${s.brand} ${s.thickness} ${s.size} LOW STOCK<br>`;
-}
-});
-document.getElementById("alertBox").innerHTML=msg;
+    let msg="";
+    stocks.forEach(s=>{
+        if(s.qty<=5){
+            msg+=`⚠️ LOW STOCK: ${s.brand} ${s.thickness} ${s.size} (Qty: ${s.qty})<br>`;
+        }
+    });
+    document.getElementById("alertBox").innerHTML=msg;
 }
 
-// DASHBOARD SWITCH (FIXED)
+// SEARCH STOCK
+function searchStock(){
+    let input = document.getElementById("searchBrand").value.toUpperCase();
+    let table = document.getElementById("stockTable");
+    let tr = table.getElementsByTagName("tr");
+
+    for (let i = 1; i < tr.length; i++) {
+        // Search in Brand(1), Thickness(2), Size(3)
+        let brand = tr[i].getElementsByTagName("td")[1];
+        let thick = tr[i].getElementsByTagName("td")[2];
+        let size = tr[i].getElementsByTagName("td")[3];
+        
+        if (brand || thick || size) {
+            let txtValue = (brand.textContent || brand.innerText) + " " + (thick.textContent || thick.innerText) + " " + (size.textContent || size.innerText);
+            if (txtValue.toUpperCase().indexOf(input) > -1) {
+                tr[i].style.display = "";
+            } else {
+                tr[i].style.display = "none";
+            }
+        }       
+    }
+}
+
+// DASHBOARD NAVIGATION
 function showStock(){
-document.getElementById("mainDashboard").style.display="none";
-document.getElementById("stockDashboard").style.display="block";
-renderStock();
+    switchSection("stockDashboard");
+    renderStock();
 }
 
 function goBack(){
-document.getElementById("stockDashboard").style.display="none";
-document.getElementById("mainDashboard").style.display="block";
+    switchSection("mainDashboard");
 }
 
-// BILL DASHBOARD
 function showBilling(){
-document.getElementById("mainDashboard").style.display="none";
-document.getElementById("billingDashboard").style.display="block";
-loadBillStock();
+    switchSection("billingDashboard");
+    loadBillStock();
+    // Reset Cart
+    billCart = [];
+    renderCart();
+    document.getElementById("billOutput").innerHTML = "";
+    document.getElementById("partyName").value = "";
+    document.getElementById("whatsappNumber").value = "";
 }
 
 function goBackFromBill(){
-document.getElementById("billingDashboard").style.display="none";
-document.getElementById("mainDashboard").style.display="block";
+    if(billCart.length > 0 && !confirm("You have items in your cart. Are you sure you want to exit?")){
+        return;
+    }
+    switchSection("mainDashboard");
 }
 
-// LOAD BILL STOCK
+function showBills(){
+    switchSection("billsDashboard");
+    renderBillHistory();
+}
+
+function backFromBills(){
+    switchSection("mainDashboard");
+}
+
+// Helper for Switching Sections
+function switchSection(id){
+    document.querySelectorAll(".container").forEach(div => div.style.display = "none");
+    document.getElementById(id).style.display = "block";
+    window.scrollTo(0,0);
+}
+
+
+// MARK: - BILLING LOGIC
+
+// LOAD BILL STOCK DROPDOWN
 function loadBillStock(){
-let select=document.getElementById("billStock");
-select.innerHTML="";
-stocks.forEach((s,i)=>{
-select.innerHTML+=`<option value="${i}">
-${s.brand} ${s.thickness} ${s.size} (Qty:${s.qty})
-</option>`;
-});
+    let select=document.getElementById("billStock");
+    let currentVal = select.value;
+    select.innerHTML="";
+    
+    if(stocks.length === 0){
+        select.innerHTML = "<option>No Stock Available</option>";
+        return;
+    }
+
+    stocks.forEach((s,i)=>{
+        let displayText = `${s.brand} - ${s.thickness} - ${s.size} (Avail: ${s.qty})`;
+        select.add(new Option(displayText, i));
+    });
 }
 
-// SIZE CONVERSION
+// SIZE CONVERSION (Meters)
 function sizeToMeter(val){
-const map={"8":2.44,"7":2.14,"6":1.84,"4":1.22,"3":0.92,"2.5":0.77,"2":0.61};
-return map[val];
+    const map={"8":2.44,"7":2.14,"6":1.84,"4":1.22,"3":0.92,"2.5":0.77,"2":0.61};
+    return map[val] || 0;
+}
+
+// CALCULATE ITEM PRICE
+function calculatePrice(stk, qty, rate, type){
+    let dims = stk.size.split("x");
+    let length = sizeToMeter(dims[0]);
+    let width = sizeToMeter(dims[1]);
+    
+    // Safety check for size parsing
+    if(!length || !width){
+        // Fallback for custom sizes if any, logic assumes standard sizes for now
+        // Or if HDMR 8x4 logic is same.
+    }
+
+    let amount = 0;
+    
+    if(type === "pcs"){
+        amount = rate * qty;
+    } else if(type === "sqft"){
+        // Area in Sq Meter * 10.764 = Sq Feet
+        let areaSqM = length * width;
+        let areaSqFt = areaSqM * 10.764;
+        amount = rate * areaSqFt * qty;
+    } else { // sqm
+        let areaSqM = length * width;
+        amount = rate * areaSqM * qty;
+    }
+    
+    return amount;
+}
+
+// ADD TO CART
+function addToCart(){
+    let stockIndex = document.getElementById("billStock").value;
+    let qty = parseFloat(document.getElementById("billQty").value);
+    let rate = parseFloat(document.getElementById("rate").value);
+    let type = document.getElementById("rateType").value;
+
+    if(stocks.length === 0){ alert("No stock available"); return; }
+    if(!qty || qty <= 0){ alert("Invalid Quantity"); return; }
+    if(!rate || rate <= 0){ alert("Invalid Rate"); return; }
+
+    let stockItem = stocks[stockIndex];
+
+    // Check availability (Considering items already in cart!)
+    let currentInCart = billCart.filter(item => item.stockIndex == stockIndex).reduce((sum, item) => sum + item.qty, 0);
+    
+    if((currentInCart + qty) > stockItem.qty){
+        alert(`Insufficient Stock! Available: ${stockItem.qty}, In Cart: ${currentInCart}`);
+        return;
+    }
+
+    let totalAmt = calculatePrice(stockItem, qty, rate, type);
+
+    billCart.push({
+        stockIndex: stockIndex,
+        brand: stockItem.brand,
+        desc: `${stockItem.thickness} ${stockItem.size}`,
+        qty: qty,
+        rate: rate,
+        type: type,
+        total: totalAmt
+    });
+
+    renderCart();
+
+    // Clear inputs for next item
+    document.getElementById("billQty").value = "";
+    document.getElementById("rate").value = "";
+}
+
+// RENDER CART
+function renderCart(){
+    let tbody = document.getElementById("cartBody");
+    let subtotalEl = document.getElementById("cartSubtotal");
+    
+    tbody.innerHTML = "";
+    let subtotal = 0;
+
+    billCart.forEach((item, index) => {
+        subtotal += item.total;
+        tbody.innerHTML += `
+            <tr>
+                <td>${item.brand} <br> <small>${item.desc}</small></td>
+                <td>${item.qty}</td>
+                <td>Rs. ${item.total.toFixed(2)}</td>
+                <td><button class="danger" style="margin:0; padding:5px;" onclick="removeFromCart(${index})">X</button></td>
+            </tr>
+        `;
+    });
+
+    subtotalEl.innerText = subtotal.toFixed(2);
+}
+
+// REMOVE FROM CART
+function removeFromCart(index){
+    billCart.splice(index, 1);
+    renderCart();
+}
+
+// GENERATE FINAL BILL
+function generateBill(){
+    if(billCart.length === 0){
+        alert("Cart is empty! Add items first.");
+        return;
+    }
+
+    let party = document.getElementById("partyName").value || "Cash Customer";
+    let whatsapp = document.getElementById("whatsappNumber").value;
+    let gst = document.getElementById("gstCheck").checked;
+    let carriage = parseFloat(document.getElementById("carriage").value) || 0;
+    let unloading = parseFloat(document.getElementById("unloading").value) || 0;
+    let discountPercent = parseFloat(document.getElementById("discount").value) || 0;
+
+    // Calculate Totals
+    let materialTotal = billCart.reduce((sum, item) => sum + item.total, 0);
+    let discountAmt = materialTotal * (discountPercent / 100);
+    let afterDiscount = materialTotal - discountAmt;
+    let gstAmt = gst ? (afterDiscount * 0.18) : 0;
+    let finalTotal = afterDiscount + gstAmt + carriage + unloading;
+
+    // 1. DEDUCT STOCK
+    billCart.forEach(item => {
+        stocks[item.stockIndex].qty -= item.qty;
+    });
+    localStorage.setItem("stocks", JSON.stringify(stocks));
+    renderStock(); // Update stock view in background
+
+    // 2. SAVE BILL HISTORY
+    // Create a summary string for legacy support
+    let summaryStr = billCart.length === 1 
+        ? `${billCart[0].brand} ${billCart[0].desc}`
+        : `${billCart.length} Items (Total Qty: ${billCart.reduce((a,b)=>a+b.qty,0)})`;
+
+    let billData = {
+        date: new Date().toLocaleString(),
+        party: party,
+        material: summaryStr, // Legacy Field
+        items: billCart,      // New Field
+        qty: billCart.reduce((a,b)=>a+b.qty,0),
+        total: finalTotal,
+        gstAmt: gstAmt,
+        discountAmt: discountAmt,
+        carriage: carriage,
+        unloading: unloading
+    };
+    
+    saveBillHistory(billData);
+
+    // 3. SHOW OUTPUT
+    let billHtml = `
+    <div style="background:#fff; padding:20px; border:1px solid #ccc; font-family:'Segoe UI', sans-serif;">
+        <h2 style="text-align:center; color:#4a3b2a; margin-bottom:5px;">VPLY CENTRE</h2>
+        <p style="text-align:center; margin-top:0;">Plywood & Hardware</p>
+        <hr style="border-top: 1px dashed #ccc;">
+        
+        <div style="display:flex; justify-content:space-between;">
+            <p><strong>Party:</strong> ${party}</p>
+            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; margin:15px 0;">
+            <tr style="background:#eee; text-align:left;">
+                <th style="padding:8px; border-bottom:1px solid #ddd;">Item</th>
+                <th style="padding:8px; text-align:right;">Qty</th>
+                <th style="padding:8px; text-align:right;">Rate</th>
+                <th style="padding:8px; text-align:right;">Total</th>
+            </tr>
+    `;
+
+    billCart.forEach(item => {
+        billHtml += `
+            <tr>
+                <td style="padding:8px; border-bottom:1px solid #eee;">
+                    ${item.brand}<br><small>${item.desc}</small>
+                </td>
+                <td style="padding:8px; text-align:right;">${item.qty}</td>
+                <td style="padding:8px; text-align:right;">${item.rate}/${item.type}</td>
+                <td style="padding:8px; text-align:right;">${item.total.toFixed(0)}</td>
+            </tr>
+        `;
+    });
+
+    billHtml += `
+        </table>
+        
+        <div style="text-align:right; line-height:1.6;">
+            <p>Subtotal: <strong>Rs. ${materialTotal.toFixed(2)}</strong></p>
+            ${discountAmt > 0 ? `<p>Discount (${discountPercent}%): -${discountAmt.toFixed(2)}</p>` : ''}
+            ${gstAmt > 0 ? `<p>GST (18%): +${gstAmt.toFixed(2)}</p>` : ''}
+            ${carriage > 0 ? `<p>Carriage: +${carriage}</p>` : ''}
+            ${unloading > 0 ? `<p>Unloading: +${unloading}</p>` : ''}
+            <h3 style="color:#8b5a2b; border-top:2px solid #ddd; padding-top:10px;">
+                Grand Total: Rs. ${finalTotal.toFixed(2)}
+            </h3>
+        </div>
+
+        <div class="row-flex" style="margin-top:20px;">
+            <button onclick="window.print()">Print Invoice</button>
+            <button onclick="sendWhatsAppBill('${party}', ${finalTotal.toFixed(2)})" style="background:#25D366;">Share via WhatsApp</button>
+        </div>
+        <button class="secondary" onclick="showBilling()" style="margin-top:10px;">New Bill</button>
+    </div>
+    `;
+
+    document.getElementById("billOutput").innerHTML = billHtml;
+    
+    // Auto scroll to bill
+    document.getElementById("billOutput").scrollIntoView({behavior: "smooth"});
 }
 
 // SAVE BILL HISTORY
 function saveBillHistory(data){
-let bills=JSON.parse(localStorage.getItem("bills"))||[];
-bills.push(data);
-localStorage.setItem("bills",JSON.stringify(bills));
+    let bills = JSON.parse(localStorage.getItem("bills")) || [];
+    bills.unshift(data); // Add new bill to top
+    localStorage.setItem("bills", JSON.stringify(bills));
 }
 
-// GENERATE BILL (WORKING)
-function generateBill(){
+// RENDER HISTORY
+function renderBillHistory(){
+    let bills = JSON.parse(localStorage.getItem("bills")) || [];
+    let table = document.getElementById("billsTable");
+    
+    if(!bills.length){
+        table.innerHTML = "<tr><td colspan='5' class='text-center'>No History Found</td></tr>";
+        return;
+    }
 
-let party=document.getElementById("partyName").value;
-let index=document.getElementById("billStock").value;
-let qty=parseFloat(document.getElementById("billQty").value);
-let rate=parseFloat(document.getElementById("rate").value);
-let rateType=document.getElementById("rateType").value;
-let gst=document.getElementById("gstCheck").checked;
-let carriage=parseFloat(document.getElementById("carriage").value)||0;
-let unloading=parseFloat(document.getElementById("unloading").value)||0;
-let discount=parseFloat(document.getElementById("discount").value)||0;
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Party</th>
+                <th>Summary</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
 
-let item=stocks[index];
-
-if(!item || qty>item.qty){
-alert("Not enough stock");
-return;
+    bills.forEach(b => {
+        table.innerHTML += `
+            <tr>
+                <td>${b.date}</td>
+                <td>${b.party}</td>
+                <td>${b.material || 'Multi-Item Bill'}</td>
+                <td>Rs. ${b.total.toFixed(2)}</td>
+            </tr>
+        `;
+    });
+    table.innerHTML += "</tbody>";
 }
 
-let dims=item.size.split("x");
-let length=sizeToMeter(dims[0]);
-let width=sizeToMeter(dims[1]);
 
-let materialAmount;
+// MARK: - WHATSAPP INTEGRATION
 
-if(rateType==="sqft"){
-materialAmount=rate*10.764*length*width*qty;
-}else{
-materialAmount=rate*length*width*qty;
+function sendWhatsAppBill(partyName, totalAmount){
+    let number = document.getElementById("whatsappNumber").value;
+    
+    // Formatting Message
+    let msg = `*VPLY CENTRE - INVOICE*%0a`;
+    msg += `Date: ${new Date().toLocaleDateString()}%0a`;
+    msg += `Party: *${partyName}*%0a`;
+    msg += `--------------------------------%0a`;
+    
+    billCart.forEach((item, i) => {
+        msg += `${i+1}. *${item.brand}* (${item.desc})%0a`;
+        msg += `   Qty: ${item.qty} | Rate: ${item.rate}/${item.type}%0a`;
+        msg += `   Amt: Rs. ${item.total.toFixed(0)}%0a`;
+    });
+
+    msg += `--------------------------------%0a`;
+    
+    let subtotal = billCart.reduce((s,i)=>s+i.total,0);
+    // Add breakup if applicable
+    
+    msg += `*GRAND TOTAL: Rs. ${totalAmount}*%0a`;
+    msg += `--------------------------------%0a`;
+    msg += `Thank you for your business!`;
+
+    if(number){
+        // Remove spaces or dashes
+        number = number.replace(/\D/g,'');
+        // Add 91 if missing
+        if(number.length === 10) number = "91" + number;
+        
+        window.open(`https://wa.me/${number}?text=${msg}`, '_blank');
+    } else {
+        alert("Please enter a WhatsApp number to send.");
+    }
 }
 
-let discountAmt=materialAmount*(discount/100);
-let afterDiscount=materialAmount-discountAmt;
-let gstAmt=gst?afterDiscount*0.18:0;
-let finalTotal=afterDiscount+gstAmt+carriage+unloading;
-
-stocks[index].qty-=qty;
-localStorage.setItem("stocks",JSON.stringify(stocks));
-renderStock();
-
-saveBillHistory({
-party,
-material:item.brand+" "+item.thickness+" "+item.size,
-qty,
-total:finalTotal,
-date:new Date().toLocaleString()
-});
-
-document.getElementById("billOutput").innerHTML=`
-<div style="background:#fff;padding:20px;font-family:Arial">
-
-<h2 style="text-align:center">VPLY CENTRE</h2>
-<hr>
-
-<p><b>Party:</b> ${party}</p>
-<p>${item.brand} ${item.thickness} ${item.size}</p>
-<p>Qty: ${qty}</p>
-<p>Rate: Rs. ${rate} (${rateType})</p>
-
-<p>Material Amount: Rs. ${materialAmount.toFixed(2)}</p>
-<p>Discount: Rs. ${discountAmt.toFixed(2)}</p>
-<p>GST: Rs. ${gstAmt.toFixed(2)}</p>
-<p>Carriage: Rs. ${carriage}</p>
-<p>Unloading: Rs. ${unloading}</p>
-
-<h3>Total: Rs. ${finalTotal.toFixed(2)}</h3>
-
-<button onclick="window.print()">Print Bill</button>
-<button onclick="sendWhatsAppBill()">Send WhatsApp</button>
-
-</div>`;
-}
-
-// WHATSAPP SEND
-function sendWhatsAppBill(){
-let number=document.getElementById("whatsappNumber").value;
-let text=document.getElementById("billOutput").innerText;
-window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`);
-}
-
-// PREVIOUS BILLS
-function showBills(){
-document.getElementById("mainDashboard").style.display="none";
-document.getElementById("billsDashboard").style.display="block";
-
-let bills=JSON.parse(localStorage.getItem("bills"))||[];
-let table=document.getElementById("billsTable");
-
-table.innerHTML="<tr><th>Date</th><th>Party</th><th>Material</th><th>Qty</th><th>Total</th></tr>";
-
-bills.forEach(b=>{
-table.innerHTML+=`<tr>
-<td>${b.date}</td>
-<td>${b.party}</td>
-<td>${b.material}</td>
-<td>${b.qty}</td>
-<td>Rs. ${b.total.toFixed(2)}</td>
-</tr>`;
-});
-}
-
-function backFromBills(){
-document.getElementById("billsDashboard").style.display="none";
-document.getElementById("mainDashboard").style.display="block";
+// Placeholder for Excel Upload in case older browsers trigger it
+function handleExcelUpload(event){
+    alert("Excel upload requires conversion logic. Please use manual entry for now.");
 }
