@@ -9,7 +9,7 @@
 
 <h1>VPLY CENTRE - Stock Management</h1>
 
-<!-- MAIN ENTRY DASHBOARD -->
+<!-- MAIN DASHBOARD -->
 <div class="container" id="mainDashboard">
 
 <h2>Add Stock</h2>
@@ -50,43 +50,95 @@
 <hr>
 
 <h2>Upload Excel Stock</h2>
-<input type="file" id="excelUpload" onchange="handleExcelUpload(event)">
+<input type="file" onchange="handleExcelUpload(event)">
 
 <br><br>
 <button onclick="showStock()">View Current Stock</button>
+<br><br>
+<button onclick="showBilling()">Make Bill</button>
+<br><br>
+<button onclick="showBills()">Previous Bills</button>
 
 </div>
 
-
-<!-- STOCK VIEW DASHBOARD -->
+<!-- STOCK DASHBOARD -->
 <div class="container" id="stockDashboard" style="display:none">
 
 <h2>Current Stock</h2>
 
 <input type="text" id="searchBrand"
 placeholder="Search by Brand..."
-onkeyup="searchStock()"
-style="padding:8px;width:60%;">
+onkeyup="searchStock()">
 
 <br><br>
-
-<button onclick="renderStock()">Refresh Stock</button>
+<button onclick="renderStock()">Refresh</button>
 
 <div id="alertBox"></div>
 
-<table id="stockTable">
-<tr>
-<th>Category</th>
-<th>Brand</th>
-<th>Thickness</th>
-<th>Size</th>
-<th>Qty</th>
-<th>Action</th>
-</tr>
-</table>
+<table id="stockTable"></table>
 
 <br>
 <button onclick="goBack()">Back</button>
+
+</div>
+
+<!-- BILLING DASHBOARD -->
+<div class="container" id="billingDashboard" style="display:none">
+
+<h2>Plywood Billing</h2>
+
+<label>Party Name</label>
+<input type="text" id="partyName">
+
+<label>WhatsApp Number</label>
+<input type="text" id="whatsappNumber" placeholder="91XXXXXXXXXX">
+
+<label>Select Stock</label>
+<select id="billStock"></select>
+
+<label>Quantity</label>
+<input type="number" id="billQty">
+
+<label>Rate Type</label>
+<select id="rateType">
+<option value="sqm">Per Sq Meter</option>
+<option value="sqft">Per Sq Feet</option>
+</select>
+
+<label>Rate</label>
+<input type="number" id="rate">
+
+<label>
+<input type="checkbox" id="gstCheck"> Add GST 18%
+</label>
+
+<label>Carriage</label>
+<input type="number" id="carriage" value="0">
+
+<label>Unloading</label>
+<input type="number" id="unloading" value="0">
+
+<label>Discount (%)</label>
+<input type="number" id="discount" value="0">
+
+<br><br>
+<button onclick="generateBill()">Generate Bill</button>
+<button onclick="goBackFromBill()">Back</button>
+
+<hr>
+<div id="billOutput"></div>
+
+</div>
+
+<!-- PREVIOUS BILLS DASHBOARD -->
+<div class="container" id="billsDashboard" style="display:none">
+
+<h2>Previous Bills</h2>
+
+<table id="billsTable" border="1" width="100%"></table>
+
+<br>
+<button onclick="backFromBills()">Back</button>
 
 </div>
 
