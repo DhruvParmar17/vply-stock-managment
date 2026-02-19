@@ -1,246 +1,625 @@
-:root {
-  --wood-dark: #4a3b2a;
-  --wood-medium: #8b5a2b;
-  --wood-light: #d2b48c;
-  --cream: #fff8dc;
-  --white: #ffffff;
-  --text-dark: #2c2c2c;
-  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --radius: 8px;
+// FIREBASE SETUP
+const firebaseConfig = {
+    apiKey: "AIzaSyA-ZDGuvfGXZyQ-urgkvsH5z20VI3Wog3o",
+    authDomain: "pricehunt-india.firebaseapp.com",
+    projectId: "pricehunt-india",
+    storageBucket: "pricehunt-india.firebasestorage.app",
+    messagingSenderId: "192907609491",
+    appId: "1:192907609491:web:cdfa4287f65e142db85466"
+};
+
+// Initialize Firebase (Compat)
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// STOCK STORAGE
+let stocks = [];
+let isOnline = navigator.onLine;
+
+// BILL CART
+let billCart = [];
+
+// INITIAL LOAD
+window.onload = function () {
+    // Setup Real-time Listener
+    setupFirebaseListener();
+
+    // UI Helpers
+    updateFields();
+    checkShortage();
+
+    const dateEl = document.getElementById("billDate");
+    if (dateEl) dateEl.innerText = new Date().toLocaleDateString();
+
+    // Check online status
+    window.addEventListener('online', () => { isOnline = true; setupFirebaseListener(); });
+    window.addEventListener('offline', () => { isOnline = false; alert("You are offline. Changes may not save to cloud."); });
+};
+
+// MARK: - FIREBASE SYNC
+
+function setupFirebaseListener() {
+    // Doc Ref: appData/stocks
+    const stockDocRef = db.collection("appData").doc("stocks");
+
+    stockDocRef.onSnapshot((docSnap) => {
+        if (docSnap.exists) {
+            // Cloud data exists, update local
+            stocks = docSnap.data().items || [];
+            localStorage.setItem("stocks", JSON.stringify(stocks));
+            renderStock();
+            checkShortage();
+        } else {
+            // No cloud data, check if we have local data to upload (Migration)
+            let localData = JSON.parse(localStorage.getItem("stocks")) || [];
+            if (localData.length > 0) {
+                console.log("Migrating local data to Cloud...");
+                uploadToCloud(localData);
+            } else {
+                stocks = [];
+                renderStock();
+            }
+        }
+    }, (error) => {
+        console.error("Sync Error:", error);
+        // Fallback to local
+        stocks = JSON.parse(localStorage.getItem("stocks")) || [];
+        renderStock();
+    });
 }
 
-* {
-  box-sizing: border-box;
+function uploadToCloud(newData) {
+    db.collection("appData").doc("stocks").set({ items: newData })
+        .then(() => console.log("Cloud Updated"))
+        .catch((e) => alert("Error saving to cloud: " + e.message));
 }
 
-body {
-  background-color: #f4efe6;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: var(--text-dark);
-  margin: 0;
-  padding: 0;
-  line-height: 1.6;
+// MARK: - STOCK MANAGEMENT
+
+// THICKNESS & SIZE
+function updateFields() {
+    let category = document.getElementById("category").value;
+    let thickness = document.getElementById("thickness");
+    let size = document.getElementById("size");
+
+    thickness.innerHTML = "";
+    size.innerHTML = "";
+
+    // Exact Logic requested by user
+    if (category === "Door") {
+        ["19BB", "25BB", "25mm", "30mm", "32mm", "35mm", "40mm", "45mm", "50mm"]
+            .forEach(t => thickness.add(new Option(t)));
+    } else if (category === "Bison Board") {
+        ["6mm", "8mm", "10mm", "12mm", "16mm", "18mm", "20mm"]
+            .forEach(t => thickness.add(new Option(t)));
+    } else {
+        ["3mm", "4mm", "6mm", "8mm", "12mm", "15mm", "16mm", "18mm", "19mm", "25mm"]
+            .forEach(t => thickness.add(new Option(t)));
+    }
+
+    if (category === "HDMR") {
+        size.add(new Option("8x4"));
+    } else {
+        ["8x4", "7x4", "6x4", "8x3", "7x3", "6x3", "8x2.5", "7x2.5", "6x2.5"]
+            .forEach(s => size.add(new Option(s)));
+    }
 }
 
-h1 {
-  background-color: var(--wood-dark);
-  color: var(--white);
-  padding: 15px;
-  margin: 0;
-  text-align: center;
-  font-size: 1.4rem;
-  letter-spacing: 1px;
-  box-shadow: var(--shadow);
+// SAVE STOCK
+function saveStock() {
+    let category = document.getElementById("category").value;
+    let brand = document.getElementById("brand").value;
+    let thickness = document.getElementById("thickness").value;
+    let size = document.getElementById("size").value;
+    let qty = parseInt(document.getElementById("qty").value);
+
+    if (!qty || qty <= 0) {
+        alert("Please enter a valid quantity.");
+        return;
+    }
+
+    // Add to local array immediately for UI responsiveness
+    stocks.push({ category, brand, thickness, size, qty });
+
+    // Sync to Cloud
+    uploadToCloud(stocks);
+
+    renderStock();
+    checkShortage();
+
+    // Reset inputs
+    document.getElementById("qty").value = "";
+    alert("Stock Added & Synced!");
 }
 
-h2 {
-  color: var(--wood-dark);
-  border-bottom: 2px solid var(--wood-medium);
-  padding-bottom: 10px;
-  margin-top: 0;
-  font-size: 1.2rem;
+// STOCK TABLE (With Partial Reduction)
+function renderStock() {
+    let table = document.getElementById("stockTable");
+
+    if (!stocks.length) {
+        table.innerHTML = "<tr><td colspan='6' class='text-center'>No stock available. Add some items!</td></tr>";
+        return;
+    }
+
+    let html = `
+    <thead>
+    <tr>
+        <th>Category</th>
+        <th>Brand</th>
+        <th>Thickness</th>
+        <th>Size</th>
+        <th>Qty</th>
+        <th>Action</th>
+    </tr>
+    </thead>
+    <tbody>`;
+
+    stocks.forEach((s, i) => {
+        html += `
+        <tr>
+            <td>${s.category}</td>
+            <td>${s.brand}</td>
+            <td>${s.thickness}</td>
+            <td>${s.size}</td>
+            <td style="font-weight:bold; color:${s.qty <= 5 ? 'red' : 'inherit'}">${s.qty}</td>
+            <td>
+                <div class="row-flex" style="gap:5px; justify-content:flex-start;">
+                    <button class="secondary" style="margin:0; padding:5px 8px; width:auto; font-size:12px;" onclick="reduceStockQty(${i})">Reduce</button>
+                    <button class="danger" style="margin:0; padding:5px 8px; width:auto; font-size:12px;" onclick="deleteStock(${i})">Delete</button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += "</tbody>";
+    table.innerHTML = html;
 }
 
-.container {
-  max-width: 800px;
-  width: 95%;
-  /* Better mobile width */
-  margin: 20px auto;
-  background: var(--white);
-  padding: 15px;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  border-top: 5px solid var(--wood-medium);
+// REDUCE STOCK (Partial)
+function reduceStockQty(i) {
+    let currentQty = stocks[i].qty;
+    let reduceBy = prompt(`Current Qty: ${currentQty}\nHow many pieces to remove?`);
+
+    if (reduceBy === null) return; // Cancelled
+
+    let qtyToRemove = parseInt(reduceBy);
+
+    if (isNaN(qtyToRemove) || qtyToRemove <= 0) {
+        alert("Invalid quantity!");
+        return;
+    }
+
+    if (qtyToRemove > currentQty) {
+        alert("Cannot remove more than available quantity!");
+        return;
+    }
+
+    stocks[i].qty -= qtyToRemove;
+
+    if (stocks[i].qty === 0) {
+        if (confirm("Quantity is 0. Delete this item?")) {
+            stocks.splice(i, 1);
+        }
+    }
+
+    uploadToCloud(stocks);
+    renderStock();
 }
 
-/* Card Style for Dashboard Sections */
-.dashboard-card {
-  background: var(--cream);
-  padding: 15px;
-  border-radius: var(--radius);
-  margin-bottom: 20px;
-  border: 1px solid var(--wood-light);
+// DELETE STOCK
+function deleteStock(i) {
+    if (confirm("Are you sure you want to delete this stock item?")) {
+        stocks.splice(i, 1);
+        uploadToCloud(stocks);
+        renderStock();
+    }
 }
 
-label {
-  display: block;
-  margin-top: 15px;
-  font-weight: 600;
-  color: var(--wood-dark);
-  font-size: 0.9rem;
+// LOW STOCK ALERT
+function checkShortage() {
+    let msg = "";
+    stocks.forEach(s => {
+        if (s.qty <= 5) {
+            msg += `⚠️ LOW STOCK: ${s.brand} ${s.thickness} ${s.size} (Qty: ${s.qty})<br>`;
+        }
+    });
+    document.getElementById("alertBox").innerHTML = msg;
 }
 
-input,
-select {
-  width: 100%;
-  padding: 12px;
-  margin-top: 5px;
-  border: 1px solid #ccc;
-  border-radius: var(--radius);
-  font-size: 16px;
-  /* Prevents zoom on iOS */
-  background: #fff;
+// SEARCH STOCK
+function searchStock() {
+    let input = document.getElementById("searchBrand").value.toUpperCase();
+    let table = document.getElementById("stockTable");
+    let tr = table.getElementsByTagName("tr");
+
+    for (let i = 1; i < tr.length; i++) {
+        // Search in Brand(1), Thickness(2), Size(3)
+        let brand = tr[i].getElementsByTagName("td")[1];
+        let thick = tr[i].getElementsByTagName("td")[2];
+        let size = tr[i].getElementsByTagName("td")[3];
+
+        if (brand || thick || size) {
+            let txtValue = (brand.textContent || brand.innerText) + " " + (thick.textContent || thick.innerText) + " " + (size.textContent || size.innerText);
+            if (txtValue.toUpperCase().indexOf(input) > -1) {
+                tr[i].style.display = "";
+            } else {
+                tr[i].style.display = "none";
+            }
+        }
+    }
 }
 
-input:focus,
-select:focus {
-  outline: none;
-  border-color: var(--wood-medium);
-  box-shadow: 0 0 0 2px rgba(139, 90, 43, 0.2);
+// DASHBOARD NAVIGATION
+function showStock() {
+    switchSection("stockDashboard");
+    renderStock();
 }
 
-/* Button Styling Updated */
-button {
-  background: var(--wood-medium);
-  color: white;
-  padding: 12px;
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: bold;
-  width: 100%;
-  /* Full width on mobile default */
-  margin-top: 15px;
-  transition: background 0.2s;
-  text-align: center;
+function goBack() {
+    switchSection("mainDashboard");
 }
 
-button:hover {
-  background: var(--wood-dark);
+function showBilling() {
+    switchSection("billingDashboard");
+    loadBillStock();
+    // Reset Cart
+    billCart = [];
+    renderCart();
+    document.getElementById("billOutput").innerHTML = "";
+    document.getElementById("partyName").value = "";
+    document.getElementById("whatsappNumber").value = "";
 }
 
-button.secondary {
-  background: #6c757d;
+function goBackFromBill() {
+    if (billCart.length > 0 && !confirm("You have items in your cart. Are you sure you want to exit?")) {
+        return;
+    }
+    switchSection("mainDashboard");
 }
 
-button.danger {
-  background: #dc3545;
+function showBills() {
+    switchSection("billsDashboard");
+    renderBillHistory();
 }
 
-/* Table Styling */
-.table-wrapper {
-  overflow-x: auto;
-  /* Scrollable tables on mobile */
-  margin-top: 20px;
-  border-radius: var(--radius);
-  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
-  background: white;
+function backFromBills() {
+    switchSection("mainDashboard");
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 500px;
-  /* Forces scroll on very small screens */
+// Helper for Switching Sections
+function switchSection(id) {
+    document.querySelectorAll(".container").forEach(div => div.style.display = "none");
+    document.getElementById(id).style.display = "block";
+    window.scrollTo(0, 0);
 }
 
-th,
-td {
-  padding: 10px;
-  /* Slightly reduced padding */
-  text-align: left;
-  border-bottom: 1px solid #eee;
-  font-size: 0.95rem;
+
+// MARK: - BILLING LOGIC
+
+// LOAD BILL STOCK DROPDOWN
+function loadBillStock() {
+    let select = document.getElementById("billStock");
+    // let currentVal = select.value;
+    select.innerHTML = "";
+
+    if (stocks.length === 0) {
+        select.innerHTML = "<option>No Stock Available</option>";
+        return;
+    }
+
+    stocks.forEach((s, i) => {
+        let displayText = `${s.brand} - ${s.thickness} - ${s.size} (Avail: ${s.qty})`;
+        select.add(new Option(displayText, i));
+    });
 }
 
-th {
-  background: var(--wood-medium);
-  color: white;
-  white-space: nowrap;
+// SIZE CONVERSION (Meters)
+function sizeToMeter(val) {
+    const map = { "8": 2.44, "7": 2.14, "6": 1.84, "4": 1.22, "3": 0.92, "2.5": 0.77, "2": 0.61 };
+    return map[val] || 0;
 }
 
-tr:nth-child(even) {
-  background-color: #f9f9f9;
+// CALCULATE ITEM PRICE
+function calculatePrice(stk, qty, rate, type) {
+    let dims = stk.size.split("x");
+    let length = sizeToMeter(dims[0]);
+    let width = sizeToMeter(dims[1]);
+
+    let amount = 0;
+
+    if (type === "pcs") {
+        amount = rate * qty;
+    } else if (type === "sqft") {
+        // Area in Sq Meter * 10.764 = Sq Feet
+        let areaSqM = length * width;
+        let areaSqFt = areaSqM * 10.764;
+        amount = rate * areaSqFt * qty;
+    } else { // sqm
+        let areaSqM = length * width;
+        amount = rate * areaSqM * qty;
+    }
+
+    return amount;
 }
 
-/* Alert Box */
-#alertBox {
-  color: #d9534f;
-  background: #fdf7f7;
-  padding: 10px;
-  border: 1px solid #d9534f;
-  border-radius: var(--radius);
-  margin-top: 15px;
-  font-weight: bold;
-  font-size: 0.9rem;
+// ADD TO CART
+function addToCart() {
+    let stockIndex = document.getElementById("billStock").value;
+    let qty = parseFloat(document.getElementById("billQty").value);
+    let rate = parseFloat(document.getElementById("rate").value);
+    let type = document.getElementById("rateType").value;
+
+    if (stocks.length === 0) { alert("No stock available"); return; }
+    if (!qty || qty <= 0) { alert("Invalid Quantity"); return; }
+    if (!rate || rate <= 0) { alert("Invalid Rate"); return; }
+
+    let stockItem = stocks[stockIndex];
+
+    // Check availability (Considering items already in cart!)
+    let currentInCart = billCart.filter(item => item.stockIndex == stockIndex).reduce((sum, item) => sum + item.qty, 0);
+
+    if ((currentInCart + qty) > stockItem.qty) {
+        alert(`Insufficient Stock! Available: ${stockItem.qty}, In Cart: ${currentInCart}`);
+        return;
+    }
+
+    let totalAmt = calculatePrice(stockItem, qty, rate, type);
+
+    billCart.push({
+        stockIndex: stockIndex,
+        brand: stockItem.brand,
+        desc: `${stockItem.thickness} ${stockItem.size}`,
+        qty: qty,
+        rate: rate,
+        type: type,
+        total: totalAmt
+    });
+
+    renderCart();
+
+    // Clear inputs for next item
+    document.getElementById("billQty").value = "";
+    document.getElementById("rate").value = "";
 }
 
-/* Bill Output Section */
-#billOutput {
-  margin-top: 20px;
-  background: white;
-  padding: 15px;
-  border: 1px dashed var(--wood-dark);
-  border-radius: var(--radius);
-  font-size: 0.95rem;
-  overflow-x: hidden;
-  /* Prevent horizontal scroll in container */
+// RENDER CART
+function renderCart() {
+    let tbody = document.getElementById("cartBody");
+    let subtotalEl = document.getElementById("cartSubtotal");
+
+    tbody.innerHTML = "";
+    let subtotal = 0;
+
+    billCart.forEach((item, index) => {
+        subtotal += item.total;
+        tbody.innerHTML += `
+            <tr>
+                <td>${item.brand} <br> <small>${item.desc}</small></td>
+                <td>${item.qty}</td>
+                <td>Rs. ${item.total.toFixed(2)}</td>
+                <td><button class="danger" style="margin:0; padding:5px;" onclick="removeFromCart(${index})">X</button></td>
+            </tr>
+        `;
+    });
+
+    subtotalEl.innerText = subtotal.toFixed(2);
 }
 
-/* Utilities & Layout */
-.row-flex {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-  /* Allow wrapping on very small screens */
+// REMOVE FROM CART
+function removeFromCart(index) {
+    billCart.splice(index, 1);
+    renderCart();
 }
 
-.full-width {
-  width: 100%;
-  flex: 1;
-  /* Allow it to grow */
+// GENERATE FINAL BILL
+function generateBill() {
+    // Check if user has entered details but forgot to click "Add Item"
+    let qtyInput = document.getElementById("billQty").value;
+    let rateInput = document.getElementById("rate").value;
+
+    if (billCart.length === 0 && qtyInput && rateInput) {
+        addToCart();
+    }
+
+    if (billCart.length === 0) {
+        alert("Cart is empty! Add items first.");
+        return;
+    }
+
+    let party = document.getElementById("partyName").value || "Cash Customer";
+    let whatsapp = document.getElementById("whatsappNumber").value;
+    let gst = document.getElementById("gstCheck").checked;
+    let carriage = parseFloat(document.getElementById("carriage").value) || 0;
+    let unloading = parseFloat(document.getElementById("unloading").value) || 0;
+    let discountPercent = parseFloat(document.getElementById("discount").value) || 0;
+
+    // Calculate Totals
+    let materialTotal = billCart.reduce((sum, item) => sum + item.total, 0);
+    let discountAmt = materialTotal * (discountPercent / 100);
+    let afterDiscount = materialTotal - discountAmt;
+    let gstAmt = gst ? (afterDiscount * 0.18) : 0;
+    let finalTotal = afterDiscount + gstAmt + carriage + unloading;
+
+    // 1. DEDUCT STOCK (Update Local + Cloud)
+    // We update the local 'stocks' array first, then push the whole array to cloud
+    // This is safer for concurrency in this simple model than individual updates
+    billCart.forEach(item => {
+        if (stocks[item.stockIndex]) {
+            stocks[item.stockIndex].qty -= item.qty;
+        }
+    });
+
+    uploadToCloud(stocks);
+    renderStock();
+
+    // 2. SAVE BILL HISTORY
+    // Create a summary string for legacy support
+    let summaryStr = billCart.length === 1
+        ? `${billCart[0].brand} ${billCart[0].desc}`
+        : `${billCart.length} Items (Total Qty: ${billCart.reduce((a, b) => a + b.qty, 0)})`;
+
+    let billData = {
+        date: new Date().toLocaleString(),
+        party: party,
+        material: summaryStr, // Legacy Field
+        items: billCart,      // New Field
+        qty: billCart.reduce((a, b) => a + b.qty, 0),
+        total: finalTotal,
+        gstAmt: gstAmt,
+        discountAmt: discountAmt,
+        carriage: carriage,
+        unloading: unloading
+    };
+
+    saveBillHistory(billData);
+
+    // 3. SHOW OUTPUT
+    let billHtml = `
+    <div style="background:#fff; padding:20px; border:1px solid #ccc; font-family:'Segoe UI', sans-serif;">
+        <h2 style="text-align:center; color:#4a3b2a; margin-bottom:5px;">VPLY CENTRE</h2>
+        <p style="text-align:center; margin-top:0;">Plywood & Hardware</p>
+        <hr style="border-top: 1px dashed #ccc;">
+        
+        <div style="display:flex; justify-content:space-between;">
+            <p><strong>Party:</strong> ${party}</p>
+            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; margin:15px 0;">
+            <tr style="background:#eee; text-align:left;">
+                <th style="padding:8px; border-bottom:1px solid #ddd;">Item</th>
+                <th style="padding:8px; text-align:right;">Qty</th>
+                <th style="padding:8px; text-align:right;">Rate</th>
+                <th style="padding:8px; text-align:right;">Total</th>
+            </tr>
+    `;
+
+    billCart.forEach(item => {
+        billHtml += `
+            <tr>
+                <td style="padding:8px; border-bottom:1px solid #eee;">
+                    ${item.brand}<br><small>${item.desc}</small>
+                </td>
+                <td style="padding:8px; text-align:right;">${item.qty}</td>
+                <td style="padding:8px; text-align:right;">${item.rate}/${item.type}</td>
+                <td style="padding:8px; text-align:right;">${item.total.toFixed(0)}</td>
+            </tr>
+        `;
+    });
+
+    billHtml += `
+        </table>
+        
+        <div style="text-align:right; line-height:1.6;">
+            <p>Subtotal: <strong>Rs. ${materialTotal.toFixed(2)}</strong></p>
+            ${discountAmt > 0 ? `<p>Discount (${discountPercent}%): -${discountAmt.toFixed(2)}</p>` : ''}
+            ${gstAmt > 0 ? `<p>GST (18%): +${gstAmt.toFixed(2)}</p>` : ''}
+            ${carriage > 0 ? `<p>Carriage: +${carriage}</p>` : ''}
+            ${unloading > 0 ? `<p>Unloading: +${unloading}</p>` : ''}
+            <h3 style="color:#8b5a2b; border-top:2px solid #ddd; padding-top:10px;">
+                Grand Total: Rs. ${finalTotal.toFixed(2)}
+            </h3>
+        </div>
+
+        <div class="row-flex" style="margin-top:20px;">
+            <button onclick="window.print()">Print Invoice</button>
+            <button onclick="sendWhatsAppBill('${party}', ${finalTotal.toFixed(2)})" style="background:#25D366;">Share via WhatsApp</button>
+        </div>
+        <button class="secondary" onclick="showBilling()" style="margin-top:10px;">New Bill</button>
+    </div>
+    `;
+
+    document.getElementById("billOutput").innerHTML = billHtml;
+
+    // Auto scroll to bill
+    document.getElementById("billOutput").scrollIntoView({ behavior: "smooth" });
 }
 
-/* Responsive adjustments */
-@media (min-width: 600px) {
-  .row-flex {
-    flex-wrap: nowrap;
-    /* No wrap on desktop/tablet */
-  }
-
-  button {
-    width: auto;
-    min-width: 120px;
-    display: inline-block;
-  }
-
-  .dashboard-card button {
-    margin-right: 10px;
-    margin-bottom: 0;
-  }
+// SAVE BILL HISTORY
+function saveBillHistory(data) {
+    let bills = JSON.parse(localStorage.getItem("bills")) || [];
+    bills.unshift(data); // Add new bill to top
+    localStorage.setItem("bills", JSON.stringify(bills));
 }
 
-/* Mobile specific fixes */
-@media (max-width: 599px) {
-  h1 {
-    font-size: 1.2rem;
-  }
+// RENDER HISTORY
+function renderBillHistory() {
+    let bills = JSON.parse(localStorage.getItem("bills")) || [];
+    let table = document.getElementById("billsTable");
 
-  .container {
-    padding: 10px;
-    width: 98%;
-  }
+    if (!bills.length) {
+        table.innerHTML = "<tr><td colspan='5' class='text-center'>No History Found</td></tr>";
+        return;
+    }
 
-  th,
-  td {
-    padding: 8px;
-    font-size: 0.85rem;
-  }
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Party</th>
+                <th>Summary</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
 
-  /* Ensure buttons stack neatly */
-  .row-flex button {
-    width: 100%;
-    margin-top: 5px;
-  }
+    bills.forEach(b => {
+        table.innerHTML += `
+            <tr>
+                <td>${b.date}</td>
+                <td>${b.party}</td>
+                <td>${b.material || 'Multi-Item Bill'}</td>
+                <td>Rs. ${b.total.toFixed(2)}</td>
+            </tr>
+        `;
+    });
+    table.innerHTML += "</tbody>";
+}
 
-  /* Adjust quick action buttons */
-  .dashboard-card button {
-    margin-bottom: 10px;
-  }
 
-  .dashboard-card button:last-child {
-    margin-bottom: 0;
-  }
+// MARK: - WHATSAPP INTEGRATION
+
+function sendWhatsAppBill(partyName, totalAmount) {
+    let number = document.getElementById("whatsappNumber").value;
+
+    // INVOICE FORMATTING
+    // Using simple spacing and newlines as WhatsApp doesn't support advanced tables
+
+    let msg = `*VPLY CENTRE - INVOICE*%0a`;
+    msg += `Date: ${new Date().toLocaleDateString()}%0a`;
+    msg += `Party: *${partyName}*%0a`;
+    msg += `--------------------------------%0a`;
+
+    billCart.forEach((item, i) => {
+        // Line 1: Item Name
+        msg += `${i + 1}. *${item.brand}* ${item.desc}%0a`;
+        // Line 2: Details
+        msg += `   ${item.qty} x ${item.rate}/${item.type} = Rs. ${item.total.toFixed(0)}%0a`;
+    });
+
+    msg += `--------------------------------%0a`;
+
+    let subtotal = billCart.reduce((s, i) => s + i.total, 0);
+    // You can add discount/gst details here if needed, but keeping it clean for now
+
+    msg += `*TOTAL PAYABLE: Rs. ${totalAmount}*%0a`;
+    msg += `--------------------------------%0a`;
+    msg += `Thank you for your business!`;
+
+    if (number) {
+        // Remove spaces or dashes
+        number = number.replace(/\D/g, '');
+        // Add 91 if missing
+        if (number.length === 10) number = "91" + number;
+
+        window.open(`https://wa.me/${number}?text=${msg}`, '_blank');
+    } else {
+        alert("Please enter a WhatsApp number to send.");
+    }
+}
+
+// Placeholder for Excel Upload in case older browsers trigger it
+function handleExcelUpload(event) {
+    alert("Excel upload requires conversion logic. Please use manual entry for now.");
 }
