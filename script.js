@@ -1,80 +1,143 @@
+// FIREBASE SETUP
+const firebaseConfig = {
+    apiKey: "AIzaSyA-ZDGuvfGXZyQ-urgkvsH5z20VI3Wog3o",
+    authDomain: "pricehunt-india.firebaseapp.com",
+    projectId: "pricehunt-india",
+    storageBucket: "pricehunt-india.firebasestorage.app",
+    messagingSenderId: "192907609491",
+    appId: "1:192907609491:web:cdfa4287f65e142db85466"
+};
+
+// Initialize Firebase (Compat)
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
 // STOCK STORAGE
-let stocks = JSON.parse(localStorage.getItem("stocks")) || [];
+let stocks = [];
+let isOnline = navigator.onLine;
 
 // BILL CART
 let billCart = [];
 
 // INITIAL LOAD
-window.onload = function(){
+window.onload = function () {
+    // Setup Real-time Listener
+    setupFirebaseListener();
+
+    // UI Helpers
     updateFields();
-    renderStock();
     checkShortage();
-    // Setup date in print view if needed
+
     const dateEl = document.getElementById("billDate");
-    if(dateEl) dateEl.innerText = new Date().toLocaleDateString();
+    if (dateEl) dateEl.innerText = new Date().toLocaleDateString();
+
+    // Check online status
+    window.addEventListener('online', () => { isOnline = true; setupFirebaseListener(); });
+    window.addEventListener('offline', () => { isOnline = false; alert("You are offline. Changes may not save to cloud."); });
 };
+
+// MARK: - FIREBASE SYNC
+
+function setupFirebaseListener() {
+    // Doc Ref: appData/stocks
+    const stockDocRef = db.collection("appData").doc("stocks");
+
+    stockDocRef.onSnapshot((docSnap) => {
+        if (docSnap.exists) {
+            // Cloud data exists, update local
+            stocks = docSnap.data().items || [];
+            localStorage.setItem("stocks", JSON.stringify(stocks));
+            renderStock();
+            checkShortage();
+        } else {
+            // No cloud data, check if we have local data to upload (Migration)
+            let localData = JSON.parse(localStorage.getItem("stocks")) || [];
+            if (localData.length > 0) {
+                console.log("Migrating local data to Cloud...");
+                uploadToCloud(localData);
+            } else {
+                stocks = [];
+                renderStock();
+            }
+        }
+    }, (error) => {
+        console.error("Sync Error:", error);
+        // Fallback to local
+        stocks = JSON.parse(localStorage.getItem("stocks")) || [];
+        renderStock();
+    });
+}
+
+function uploadToCloud(newData) {
+    db.collection("appData").doc("stocks").set({ items: newData })
+        .then(() => console.log("Cloud Updated"))
+        .catch((e) => alert("Error saving to cloud: " + e.message));
+}
 
 // MARK: - STOCK MANAGEMENT
 
 // THICKNESS & SIZE
-function updateFields(){
-    let category=document.getElementById("category").value;
-    let thickness=document.getElementById("thickness");
-    let size=document.getElementById("size");
+function updateFields() {
+    let category = document.getElementById("category").value;
+    let thickness = document.getElementById("thickness");
+    let size = document.getElementById("size");
 
-    thickness.innerHTML="";
-    size.innerHTML="";
+    thickness.innerHTML = "";
+    size.innerHTML = "";
 
-    // Expanded logic for better user experience
-    if(category==="Door"){
-        ["19BB","25BB","25mm","30mm","32mm","35mm","40mm","45mm","50mm"]
-        .forEach(t=>thickness.add(new Option(t)));
-    } else if(category==="Bison Board"){
-        ["6mm","8mm","10mm","12mm","16mm","18mm","20mm"]
-        .forEach(t=>thickness.add(new Option(t)));
+    // Exact Logic requested by user
+    if (category === "Door") {
+        ["19BB", "25BB", "25mm", "30mm", "32mm", "35mm", "40mm", "45mm", "50mm"]
+            .forEach(t => thickness.add(new Option(t)));
+    } else if (category === "Bison Board") {
+        ["6mm", "8mm", "10mm", "12mm", "16mm", "18mm", "20mm"]
+            .forEach(t => thickness.add(new Option(t)));
     } else {
-        ["3mm","4mm","6mm","8mm","12mm","15mm","16mm","18mm","19mm","25mm"]
-        .forEach(t=>thickness.add(new Option(t)));
+        ["3mm", "4mm", "6mm", "8mm", "12mm", "15mm", "16mm", "18mm", "19mm", "25mm"]
+            .forEach(t => thickness.add(new Option(t)));
     }
 
-    if(category==="HDMR"){
+    if (category === "HDMR") {
         size.add(new Option("8x4"));
     } else {
-        ["8x4","7x4","6x4","8x3","7x3","6x3","8x2.5","7x2.5","6x2.5"]
-        .forEach(s=>size.add(new Option(s)));
+        ["8x4", "7x4", "6x4", "8x3", "7x3", "6x3", "8x2.5", "7x2.5", "6x2.5"]
+            .forEach(s => size.add(new Option(s)));
     }
 }
 
 // SAVE STOCK
-function saveStock(){
-    let category=document.getElementById("category").value;
-    let brand=document.getElementById("brand").value;
-    let thickness=document.getElementById("thickness").value;
-    let size=document.getElementById("size").value;
-    let qty=parseInt(document.getElementById("qty").value);
+function saveStock() {
+    let category = document.getElementById("category").value;
+    let brand = document.getElementById("brand").value;
+    let thickness = document.getElementById("thickness").value;
+    let size = document.getElementById("size").value;
+    let qty = parseInt(document.getElementById("qty").value);
 
-    if(!qty || qty<=0){
+    if (!qty || qty <= 0) {
         alert("Please enter a valid quantity.");
         return;
     }
 
-    stocks.push({category,brand,thickness,size,qty});
-    localStorage.setItem("stocks", JSON.stringify(stocks));
-    
+    // Add to local array immediately for UI responsiveness
+    stocks.push({ category, brand, thickness, size, qty });
+
+    // Sync to Cloud
+    uploadToCloud(stocks);
+
     renderStock();
     checkShortage();
-    
+
     // Reset inputs
-    document.getElementById("qty").value="";
-    alert("Stock Added Successfully!");
+    document.getElementById("qty").value = "";
+    alert("Stock Added & Synced!");
 }
 
-// STOCK TABLE
-function renderStock(){
-    let table=document.getElementById("stockTable");
+// STOCK TABLE (With Partial Reduction)
+function renderStock() {
+    let table = document.getElementById("stockTable");
 
-    if(!stocks.length){
-        table.innerHTML="<tr><td colspan='6' class='text-center'>No stock available. Add some items!</td></tr>";
+    if (!stocks.length) {
+        table.innerHTML = "<tr><td colspan='6' class='text-center'>No stock available. Add some items!</td></tr>";
         return;
     }
 
@@ -91,44 +154,80 @@ function renderStock(){
     </thead>
     <tbody>`;
 
-    stocks.forEach((s,i)=>{
-        html+=`
+    stocks.forEach((s, i) => {
+        html += `
         <tr>
             <td>${s.category}</td>
             <td>${s.brand}</td>
             <td>${s.thickness}</td>
             <td>${s.size}</td>
-            <td style="font-weight:bold; color:${s.qty<=5?'red':'inherit'}">${s.qty}</td>
-            <td><button class="danger" style="margin-top:0; padding:5px 10px; width:auto;" onclick="deleteStock(${i})">Delete</button></td>
+            <td style="font-weight:bold; color:${s.qty <= 5 ? 'red' : 'inherit'}">${s.qty}</td>
+            <td>
+                <div class="row-flex" style="gap:5px; justify-content:flex-start;">
+                    <button class="secondary" style="margin:0; padding:5px 8px; width:auto; font-size:12px;" onclick="reduceStockQty(${i})">Reduce</button>
+                    <button class="danger" style="margin:0; padding:5px 8px; width:auto; font-size:12px;" onclick="deleteStock(${i})">Delete</button>
+                </div>
+            </td>
         </tr>`;
     });
-    
+
     html += "</tbody>";
     table.innerHTML = html;
 }
 
+// REDUCE STOCK (Partial)
+function reduceStockQty(i) {
+    let currentQty = stocks[i].qty;
+    let reduceBy = prompt(`Current Qty: ${currentQty}\nHow many pieces to remove?`);
+
+    if (reduceBy === null) return; // Cancelled
+
+    let qtyToRemove = parseInt(reduceBy);
+
+    if (isNaN(qtyToRemove) || qtyToRemove <= 0) {
+        alert("Invalid quantity!");
+        return;
+    }
+
+    if (qtyToRemove > currentQty) {
+        alert("Cannot remove more than available quantity!");
+        return;
+    }
+
+    stocks[i].qty -= qtyToRemove;
+
+    if (stocks[i].qty === 0) {
+        if (confirm("Quantity is 0. Delete this item?")) {
+            stocks.splice(i, 1);
+        }
+    }
+
+    uploadToCloud(stocks);
+    renderStock();
+}
+
 // DELETE STOCK
-function deleteStock(i){
-    if(confirm("Are you sure you want to delete this stock item?")){
-        stocks.splice(i,1);
-        localStorage.setItem("stocks", JSON.stringify(stocks));
+function deleteStock(i) {
+    if (confirm("Are you sure you want to delete this stock item?")) {
+        stocks.splice(i, 1);
+        uploadToCloud(stocks);
         renderStock();
     }
 }
 
 // LOW STOCK ALERT
-function checkShortage(){
-    let msg="";
-    stocks.forEach(s=>{
-        if(s.qty<=5){
-            msg+=`⚠️ LOW STOCK: ${s.brand} ${s.thickness} ${s.size} (Qty: ${s.qty})<br>`;
+function checkShortage() {
+    let msg = "";
+    stocks.forEach(s => {
+        if (s.qty <= 5) {
+            msg += `⚠️ LOW STOCK: ${s.brand} ${s.thickness} ${s.size} (Qty: ${s.qty})<br>`;
         }
     });
-    document.getElementById("alertBox").innerHTML=msg;
+    document.getElementById("alertBox").innerHTML = msg;
 }
 
 // SEARCH STOCK
-function searchStock(){
+function searchStock() {
     let input = document.getElementById("searchBrand").value.toUpperCase();
     let table = document.getElementById("stockTable");
     let tr = table.getElementsByTagName("tr");
@@ -138,7 +237,7 @@ function searchStock(){
         let brand = tr[i].getElementsByTagName("td")[1];
         let thick = tr[i].getElementsByTagName("td")[2];
         let size = tr[i].getElementsByTagName("td")[3];
-        
+
         if (brand || thick || size) {
             let txtValue = (brand.textContent || brand.innerText) + " " + (thick.textContent || thick.innerText) + " " + (size.textContent || size.innerText);
             if (txtValue.toUpperCase().indexOf(input) > -1) {
@@ -146,21 +245,21 @@ function searchStock(){
             } else {
                 tr[i].style.display = "none";
             }
-        }       
+        }
     }
 }
 
 // DASHBOARD NAVIGATION
-function showStock(){
+function showStock() {
     switchSection("stockDashboard");
     renderStock();
 }
 
-function goBack(){
+function goBack() {
     switchSection("mainDashboard");
 }
 
-function showBilling(){
+function showBilling() {
     switchSection("billingDashboard");
     loadBillStock();
     // Reset Cart
@@ -171,72 +270,66 @@ function showBilling(){
     document.getElementById("whatsappNumber").value = "";
 }
 
-function goBackFromBill(){
-    if(billCart.length > 0 && !confirm("You have items in your cart. Are you sure you want to exit?")){
+function goBackFromBill() {
+    if (billCart.length > 0 && !confirm("You have items in your cart. Are you sure you want to exit?")) {
         return;
     }
     switchSection("mainDashboard");
 }
 
-function showBills(){
+function showBills() {
     switchSection("billsDashboard");
     renderBillHistory();
 }
 
-function backFromBills(){
+function backFromBills() {
     switchSection("mainDashboard");
 }
 
 // Helper for Switching Sections
-function switchSection(id){
+function switchSection(id) {
     document.querySelectorAll(".container").forEach(div => div.style.display = "none");
     document.getElementById(id).style.display = "block";
-    window.scrollTo(0,0);
+    window.scrollTo(0, 0);
 }
 
 
 // MARK: - BILLING LOGIC
 
 // LOAD BILL STOCK DROPDOWN
-function loadBillStock(){
-    let select=document.getElementById("billStock");
-    let currentVal = select.value;
-    select.innerHTML="";
-    
-    if(stocks.length === 0){
+function loadBillStock() {
+    let select = document.getElementById("billStock");
+    // let currentVal = select.value;
+    select.innerHTML = "";
+
+    if (stocks.length === 0) {
         select.innerHTML = "<option>No Stock Available</option>";
         return;
     }
 
-    stocks.forEach((s,i)=>{
+    stocks.forEach((s, i) => {
         let displayText = `${s.brand} - ${s.thickness} - ${s.size} (Avail: ${s.qty})`;
         select.add(new Option(displayText, i));
     });
 }
 
 // SIZE CONVERSION (Meters)
-function sizeToMeter(val){
-    const map={"8":2.44,"7":2.14,"6":1.84,"4":1.22,"3":0.92,"2.5":0.77,"2":0.61};
+function sizeToMeter(val) {
+    const map = { "8": 2.44, "7": 2.14, "6": 1.84, "4": 1.22, "3": 0.92, "2.5": 0.77, "2": 0.61 };
     return map[val] || 0;
 }
 
 // CALCULATE ITEM PRICE
-function calculatePrice(stk, qty, rate, type){
+function calculatePrice(stk, qty, rate, type) {
     let dims = stk.size.split("x");
     let length = sizeToMeter(dims[0]);
     let width = sizeToMeter(dims[1]);
-    
-    // Safety check for size parsing
-    if(!length || !width){
-        // Fallback for custom sizes if any, logic assumes standard sizes for now
-        // Or if HDMR 8x4 logic is same.
-    }
 
     let amount = 0;
-    
-    if(type === "pcs"){
+
+    if (type === "pcs") {
         amount = rate * qty;
-    } else if(type === "sqft"){
+    } else if (type === "sqft") {
         // Area in Sq Meter * 10.764 = Sq Feet
         let areaSqM = length * width;
         let areaSqFt = areaSqM * 10.764;
@@ -245,27 +338,27 @@ function calculatePrice(stk, qty, rate, type){
         let areaSqM = length * width;
         amount = rate * areaSqM * qty;
     }
-    
+
     return amount;
 }
 
 // ADD TO CART
-function addToCart(){
+function addToCart() {
     let stockIndex = document.getElementById("billStock").value;
     let qty = parseFloat(document.getElementById("billQty").value);
     let rate = parseFloat(document.getElementById("rate").value);
     let type = document.getElementById("rateType").value;
 
-    if(stocks.length === 0){ alert("No stock available"); return; }
-    if(!qty || qty <= 0){ alert("Invalid Quantity"); return; }
-    if(!rate || rate <= 0){ alert("Invalid Rate"); return; }
+    if (stocks.length === 0) { alert("No stock available"); return; }
+    if (!qty || qty <= 0) { alert("Invalid Quantity"); return; }
+    if (!rate || rate <= 0) { alert("Invalid Rate"); return; }
 
     let stockItem = stocks[stockIndex];
 
     // Check availability (Considering items already in cart!)
     let currentInCart = billCart.filter(item => item.stockIndex == stockIndex).reduce((sum, item) => sum + item.qty, 0);
-    
-    if((currentInCart + qty) > stockItem.qty){
+
+    if ((currentInCart + qty) > stockItem.qty) {
         alert(`Insufficient Stock! Available: ${stockItem.qty}, In Cart: ${currentInCart}`);
         return;
     }
@@ -290,10 +383,10 @@ function addToCart(){
 }
 
 // RENDER CART
-function renderCart(){
+function renderCart() {
     let tbody = document.getElementById("cartBody");
     let subtotalEl = document.getElementById("cartSubtotal");
-    
+
     tbody.innerHTML = "";
     let subtotal = 0;
 
@@ -313,14 +406,14 @@ function renderCart(){
 }
 
 // REMOVE FROM CART
-function removeFromCart(index){
+function removeFromCart(index) {
     billCart.splice(index, 1);
     renderCart();
 }
 
 // GENERATE FINAL BILL
-function generateBill(){
-    if(billCart.length === 0){
+function generateBill() {
+    if (billCart.length === 0) {
         alert("Cart is empty! Add items first.");
         return;
     }
@@ -339,32 +432,37 @@ function generateBill(){
     let gstAmt = gst ? (afterDiscount * 0.18) : 0;
     let finalTotal = afterDiscount + gstAmt + carriage + unloading;
 
-    // 1. DEDUCT STOCK
+    // 1. DEDUCT STOCK (Update Local + Cloud)
+    // We update the local 'stocks' array first, then push the whole array to cloud
+    // This is safer for concurrency in this simple model than individual updates
     billCart.forEach(item => {
-        stocks[item.stockIndex].qty -= item.qty;
+        if (stocks[item.stockIndex]) {
+            stocks[item.stockIndex].qty -= item.qty;
+        }
     });
-    localStorage.setItem("stocks", JSON.stringify(stocks));
-    renderStock(); // Update stock view in background
+
+    uploadToCloud(stocks);
+    renderStock();
 
     // 2. SAVE BILL HISTORY
     // Create a summary string for legacy support
-    let summaryStr = billCart.length === 1 
+    let summaryStr = billCart.length === 1
         ? `${billCart[0].brand} ${billCart[0].desc}`
-        : `${billCart.length} Items (Total Qty: ${billCart.reduce((a,b)=>a+b.qty,0)})`;
+        : `${billCart.length} Items (Total Qty: ${billCart.reduce((a, b) => a + b.qty, 0)})`;
 
     let billData = {
         date: new Date().toLocaleString(),
         party: party,
         material: summaryStr, // Legacy Field
         items: billCart,      // New Field
-        qty: billCart.reduce((a,b)=>a+b.qty,0),
+        qty: billCart.reduce((a, b) => a + b.qty, 0),
         total: finalTotal,
         gstAmt: gstAmt,
         discountAmt: discountAmt,
         carriage: carriage,
         unloading: unloading
     };
-    
+
     saveBillHistory(billData);
 
     // 3. SHOW OUTPUT
@@ -424,24 +522,24 @@ function generateBill(){
     `;
 
     document.getElementById("billOutput").innerHTML = billHtml;
-    
+
     // Auto scroll to bill
-    document.getElementById("billOutput").scrollIntoView({behavior: "smooth"});
+    document.getElementById("billOutput").scrollIntoView({ behavior: "smooth" });
 }
 
 // SAVE BILL HISTORY
-function saveBillHistory(data){
+function saveBillHistory(data) {
     let bills = JSON.parse(localStorage.getItem("bills")) || [];
     bills.unshift(data); // Add new bill to top
     localStorage.setItem("bills", JSON.stringify(bills));
 }
 
 // RENDER HISTORY
-function renderBillHistory(){
+function renderBillHistory() {
     let bills = JSON.parse(localStorage.getItem("bills")) || [];
     let table = document.getElementById("billsTable");
-    
-    if(!bills.length){
+
+    if (!bills.length) {
         table.innerHTML = "<tr><td colspan='5' class='text-center'>No History Found</td></tr>";
         return;
     }
@@ -474,36 +572,39 @@ function renderBillHistory(){
 
 // MARK: - WHATSAPP INTEGRATION
 
-function sendWhatsAppBill(partyName, totalAmount){
+function sendWhatsAppBill(partyName, totalAmount) {
     let number = document.getElementById("whatsappNumber").value;
-    
-    // Formatting Message
+
+    // INVOICE FORMATTING
+    // Using simple spacing and newlines as WhatsApp doesn't support advanced tables
+
     let msg = `*VPLY CENTRE - INVOICE*%0a`;
     msg += `Date: ${new Date().toLocaleDateString()}%0a`;
     msg += `Party: *${partyName}*%0a`;
     msg += `--------------------------------%0a`;
-    
+
     billCart.forEach((item, i) => {
-        msg += `${i+1}. *${item.brand}* (${item.desc})%0a`;
-        msg += `   Qty: ${item.qty} | Rate: ${item.rate}/${item.type}%0a`;
-        msg += `   Amt: Rs. ${item.total.toFixed(0)}%0a`;
+        // Line 1: Item Name
+        msg += `${i + 1}. *${item.brand}* ${item.desc}%0a`;
+        // Line 2: Details
+        msg += `   ${item.qty} x ${item.rate}/${item.type} = Rs. ${item.total.toFixed(0)}%0a`;
     });
 
     msg += `--------------------------------%0a`;
-    
-    let subtotal = billCart.reduce((s,i)=>s+i.total,0);
-    // Add breakup if applicable
-    
-    msg += `*GRAND TOTAL: Rs. ${totalAmount}*%0a`;
+
+    let subtotal = billCart.reduce((s, i) => s + i.total, 0);
+    // You can add discount/gst details here if needed, but keeping it clean for now
+
+    msg += `*TOTAL PAYABLE: Rs. ${totalAmount}*%0a`;
     msg += `--------------------------------%0a`;
     msg += `Thank you for your business!`;
 
-    if(number){
+    if (number) {
         // Remove spaces or dashes
-        number = number.replace(/\D/g,'');
+        number = number.replace(/\D/g, '');
         // Add 91 if missing
-        if(number.length === 10) number = "91" + number;
-        
+        if (number.length === 10) number = "91" + number;
+
         window.open(`https://wa.me/${number}?text=${msg}`, '_blank');
     } else {
         alert("Please enter a WhatsApp number to send.");
@@ -511,6 +612,6 @@ function sendWhatsAppBill(partyName, totalAmount){
 }
 
 // Placeholder for Excel Upload in case older browsers trigger it
-function handleExcelUpload(event){
+function handleExcelUpload(event) {
     alert("Excel upload requires conversion logic. Please use manual entry for now.");
 }
