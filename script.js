@@ -1,4 +1,4 @@
-// LOAD STOCK SAFELY
+// STOCK STORAGE
 let stocks = JSON.parse(localStorage.getItem("stocks")) || [];
 
 // INITIAL LOAD
@@ -8,9 +8,8 @@ renderStock();
 checkShortage();
 };
 
-// CATEGORY FIELD UPDATE
+// THICKNESS & SIZE
 function updateFields(){
-
 let category=document.getElementById("category").value;
 let thickness=document.getElementById("thickness");
 let size=document.getElementById("size");
@@ -21,11 +20,9 @@ size.innerHTML="";
 if(category==="Door"){
 ["19BB","25BB","25mm","30mm","35mm","40mm","45mm","50mm"]
 .forEach(t=>thickness.add(new Option(t)));
-
 }else if(category==="Bison Board"){
 ["6mm","8mm","12mm","16mm","18mm"]
 .forEach(t=>thickness.add(new Option(t)));
-
 }else{
 ["4mm","6mm","8mm","12mm","16mm","18mm"]
 .forEach(t=>thickness.add(new Option(t)));
@@ -39,9 +36,8 @@ size.add(new Option("8x4"));
 }
 }
 
-// ADD STOCK
+// SAVE STOCK
 function saveStock(){
-
 let category=document.getElementById("category").value;
 let brand=document.getElementById("brand").value;
 let thickness=document.getElementById("thickness").value;
@@ -54,23 +50,18 @@ return;
 }
 
 stocks.push({category,brand,thickness,size,qty});
-
-// SAVE PERMANENTLY
 localStorage.setItem("stocks", JSON.stringify(stocks));
-
 renderStock();
 checkShortage();
-
 document.getElementById("qty").value="";
 }
 
-// SHOW STOCK TABLE
+// STOCK TABLE
 function renderStock(){
-
 let table=document.getElementById("stockTable");
 
 if(!stocks.length){
-table.innerHTML="<tr><td colspan='6'>No stock available</td></tr>";
+table.innerHTML="<tr><td colspan='6'>No stock</td></tr>";
 return;
 }
 
@@ -100,80 +91,150 @@ table.innerHTML+=`
 // DELETE STOCK
 function deleteStock(i){
 stocks.splice(i,1);
-
 localStorage.setItem("stocks", JSON.stringify(stocks));
-
 renderStock();
-checkShortage();
 }
 
 // LOW STOCK ALERT
 function checkShortage(){
-
-let alertMsg="";
-
+let msg="";
 stocks.forEach(s=>{
 if(s.qty<=5){
-alertMsg+=`${s.brand} ${s.thickness} ${s.size} LOW STOCK<br>`;
+msg+=`${s.brand} ${s.thickness} ${s.size} LOW STOCK<br>`;
 }
 });
-
-document.getElementById("alertBox").innerHTML=alertMsg;
+document.getElementById("alertBox").innerHTML=msg;
 }
 
 // DASHBOARD SWITCH
 function showStock(){
-document.getElementById("mainDashboard").style.display="none";
-document.getElementById("stockDashboard").style.display="block";
+mainDashboard.style.display="none";
+stockDashboard.style.display="block";
 renderStock();
-checkShortage();
 }
-
 function goBack(){
-document.getElementById("stockDashboard").style.display="none";
-document.getElementById("mainDashboard").style.display="block";
+stockDashboard.style.display="none";
+mainDashboard.style.display="block";
 }
 
-// SEARCH STOCK
-function searchStock(){
+// BILL DASHBOARD
+function showBilling(){
+mainDashboard.style.display="none";
+billingDashboard.style.display="block";
+loadBillStock();
+}
+function goBackFromBill(){
+billingDashboard.style.display="none";
+mainDashboard.style.display="block";
+}
 
-let search=document.getElementById("searchBrand").value.toLowerCase();
+// LOAD BILL STOCK
+function loadBillStock(){
+let select=document.getElementById("billStock");
+select.innerHTML="";
+stocks.forEach((s,i)=>{
+select.innerHTML+=`<option value="${i}">
+${s.brand} ${s.thickness} ${s.size} (Qty:${s.qty})
+</option>`;
+});
+}
 
-if(search===""){
+// SIZE CONVERSION
+function sizeToMeter(val){
+const map={"8":2.44,"7":2.14,"6":1.84,"4":1.22,"3":0.92,"2.5":0.77,"2":0.61};
+return map[val];
+}
+
+// SAVE BILL HISTORY
+function saveBillHistory(data){
+let bills=JSON.parse(localStorage.getItem("bills"))||[];
+bills.push(data);
+localStorage.setItem("bills",JSON.stringify(bills));
+}
+
+// GENERATE BILL
+function generateBill(){
+
+let party=partyName.value;
+let number=whatsappNumber.value;
+let index=billStock.value;
+let qty=parseFloat(billQty.value);
+let rate=parseFloat(document.getElementById("rate").value);
+let rateType=rateType.value;
+let gst=gstCheck.checked;
+let carriage=parseFloat(carriage.value)||0;
+let unloading=parseFloat(unloading.value)||0;
+let discount=parseFloat(document.getElementById("discount").value)||0;
+
+let item=stocks[index];
+
+let dims=item.size.split("x");
+let length=sizeToMeter(dims[0]);
+let width=sizeToMeter(dims[1]);
+
+let materialAmount=(rateType==="sqft")
+? rate*10.764*length*width*qty
+: rate*length*width*qty;
+
+let discountAmt=materialAmount*(discount/100);
+let afterDiscount=materialAmount-discountAmt;
+let gstAmt=gst?afterDiscount*0.18:0;
+let finalTotal=afterDiscount+gstAmt+carriage+unloading;
+
+stocks[index].qty-=qty;
+localStorage.setItem("stocks",JSON.stringify(stocks));
 renderStock();
-return;
+
+saveBillHistory({party,material:item.brand,qty,total:finalTotal,date:new Date().toLocaleString()});
+
+billOutput.innerHTML=`
+<div style="background:#fff;padding:20px">
+<h2 style="text-align:center">VPLY CENTRE</h2>
+<p><b>Party:</b> ${party}</p>
+<p>${item.brand} ${item.thickness} ${item.size}</p>
+<p>Qty: ${qty}</p>
+<p>Rate: Rs. ${rate}</p>
+<p>Material Amount: Rs. ${materialAmount.toFixed(2)}</p>
+<p>Discount: Rs. ${discountAmt.toFixed(2)}</p>
+<p>GST: Rs. ${gstAmt.toFixed(2)}</p>
+<p>Carriage: Rs. ${carriage}</p>
+<p>Unloading: Rs. ${unloading}</p>
+<h3>Total: Rs. ${finalTotal.toFixed(2)}</h3>
+
+<button onclick="window.print()">Print Bill</button>
+<button onclick="sendWhatsAppBill()">Send WhatsApp</button>
+</div>`;
 }
 
-let filtered=stocks.filter(s=>
-s.brand.toLowerCase().includes(search)
-);
+// WHATSAPP SEND
+function sendWhatsAppBill(){
+let number=document.getElementById("whatsappNumber").value;
+let text=document.getElementById("billOutput").innerText;
+window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`);
+}
 
-let table=document.getElementById("stockTable");
+// PREVIOUS BILLS
+function showBills(){
+mainDashboard.style.display="none";
+billsDashboard.style.display="block";
 
-table.innerHTML=`
-<tr>
-<th>Category</th>
-<th>Brand</th>
-<th>Thickness</th>
-<th>Size</th>
-<th>Qty</th>
-<th>Action</th>
-</tr>`;
+let bills=JSON.parse(localStorage.getItem("bills"))||[];
+let table=billsTable;
 
-filtered.forEach((s,i)=>{
-table.innerHTML+=`
-<tr>
-<td>${s.category}</td>
-<td>${s.brand}</td>
-<td>${s.thickness}</td>
-<td>${s.size}</td>
-<td>${s.qty}</td>
-<td><button onclick="deleteStock(${i})">Delete</button></td>
+table.innerHTML="<tr><th>Date</th><th>Party</th><th>Material</th><th>Qty</th><th>Total</th></tr>";
+
+bills.forEach(b=>{
+table.innerHTML+=`<tr>
+<td>${b.date}</td>
+<td>${b.party}</td>
+<td>${b.material}</td>
+<td>${b.qty}</td>
+<td>Rs. ${b.total.toFixed(2)}</td>
 </tr>`;
 });
 }
 
-// EXCEL PLACEHOLDER
-function handleExcelUpload(){
-alert("Excel import coming next step 👍");
+function backFromBills(){
+billsDashboard.style.display="none";
+mainDashboard.style.display="block";
 }
