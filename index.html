@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,9 +14,9 @@
 
     <!-- MAIN DASHBOARD -->
     <div class="container" id="mainDashboard">
-        
+
         <h2>Dashboard</h2>
-        
+
         <div class="dashboard-card">
             <h3>Add New Stock</h3>
             <label>Category</label>
@@ -74,11 +75,11 @@
 
     <!-- STOCK DASHBOARD -->
     <div class="container" id="stockDashboard" style="display:none">
-        
+
         <h2>Current Stock</h2>
-        
+
         <input type="text" id="searchBrand" placeholder="Search by Brand..." onkeyup="searchStock()">
-        
+
         <div id="alertBox"></div>
 
         <div class="table-wrapper">
@@ -94,7 +95,7 @@
 
     <!-- BILLING DASHBOARD -->
     <div class="container" id="billingDashboard" style="display:none">
-        
+
         <h2>Create Bill</h2>
 
         <div class="dashboard-card">
@@ -107,7 +108,7 @@
 
         <div class="dashboard-card">
             <h3>Add Items to Bill</h3>
-            
+
             <label>Select Item From Stock</label>
             <select id="billStock"></select>
 
@@ -121,14 +122,14 @@
                     <select id="rateType">
                         <option value="sqft">Per Sq. Ft</option>
                         <option value="sqm">Per Sq. Meter</option>
-                        <option value="pcs">Per Piece</option> 
+                        <option value="pcs">Per Piece</option>
                     </select>
                 </div>
             </div>
 
             <label>Rate (Price)</label>
             <input type="number" id="rate" placeholder="Enter Rate">
-            
+
             <button class="secondary" onclick="addToCart()">+ Add Item</button>
         </div>
 
@@ -149,7 +150,7 @@
                 </table>
             </div>
             <div style="text-align: right; margin-top: 10px; font-weight: bold;">
-                 Subtotal: Rs. <span id="cartSubtotal">0</span>
+                Subtotal: Rs. <span id="cartSubtotal">0</span>
             </div>
         </div>
 
@@ -183,7 +184,7 @@
 
     <!-- PREVIOUS BILLS DASHBOARD -->
     <div class="container" id="billsDashboard" style="display:none">
-        
+
         <h2>Bill History</h2>
 
         <div class="table-wrapper">
@@ -194,6 +195,11 @@
 
     </div>
 
+    <!-- Firebase Compat SDKs (Required for file:// usage) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
     <script src="script.js"></script>
 </body>
+
 </html>
