@@ -413,6 +413,14 @@ function removeFromCart(index) {
 
 // GENERATE FINAL BILL
 function generateBill() {
+    // Check if user has entered details but forgot to click "Add Item"
+    let qtyInput = document.getElementById("billQty").value;
+    let rateInput = document.getElementById("rate").value;
+
+    if (billCart.length === 0 && qtyInput && rateInput) {
+        addToCart();
+    }
+
     if (billCart.length === 0) {
         alert("Cart is empty! Add items first.");
         return;
